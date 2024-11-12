@@ -1,6 +1,7 @@
 (async function() {
     let pageCount = 0;
     let deletedCount = 0;
+    let deletedByScriptCount = 0;
     let totalMessagesCount = 0;
 
     async function analyzeMessages(doc) {
@@ -50,7 +51,7 @@
                 const deleteButton = iframe.contentWindow.document.querySelector('.picto-msg-croix[data-type="delete"]');
                 if (!deleteButton && !buttonDisappeared) {
                     buttonDisappeared = true;
-                    deletedCount++;
+                    deletedByScriptCount++;
                     console.log(`#${attemptNumber} Message supprimé avec succès: (ID: ${messageId})`);
                     clearInterval(checkButtonInterval);
                     resolve();
@@ -88,10 +89,11 @@
             }, { once: true });
         } else {
             const deletedPercentage = ((deletedCount / totalMessagesCount) * 100).toFixed(2);
-            console.log(`Aucune page suivante. Total de pages visitées : ${pageCount}`);
-            console.log(`Total de messages : ${totalMessagesCount}`);
-            console.log(`Total de messages déjà supprimés : ${deletedCount}`);
-            console.log(`Pourcentage de messages déjà supprimés : ${deletedPercentage}%`);
+            console.log(`Aucune page suivante. Total de pages analysées: ${pageCount}`);
+            console.log(`Total de messages postés: ${totalMessagesCount}`);
+            console.log(`Messages supprimés par le script: ${deletedByScriptCount}`);
+            console.log(`Total de messages qui étaient déjà supprimés: ${deletedCount}`);
+            console.log(`Pourcentage de messages qui étaient déjà supprimés: ${deletedPercentage}%`);
         }
     }
 
