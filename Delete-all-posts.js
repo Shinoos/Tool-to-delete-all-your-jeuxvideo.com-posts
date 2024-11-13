@@ -1,6 +1,8 @@
 (async function() {
     let pageCount = 0;
-    let deletedCount = 0;
+    let deletedStandardCount = 0;
+    let deletedGtaCount = 0;
+    let deletedTotalCount = 0;
     let deletedByScriptCount = 0;
     let totalMessagesCount = 0;
 
@@ -12,8 +14,12 @@
 
         for (const message of messages) {
             totalMessagesCount++;
-            if (message.classList.contains('msg-supprime') || message.classList.contains('msg-supprime-gta')) {
-                deletedCount++;
+            if (message.classList.contains('msg-supprime')) {
+                deletedStandardCount++;
+                deletedTotalCount++;
+            } else if (message.classList.contains('msg-supprime-gta')) {
+                deletedGtaCount++;
+                deletedTotalCount++;
             } else {
                 const messageId = message.getAttribute('data-id');
                 const messageLink = `https://www.jeuxvideo.com/forums/message/${messageId}`;
@@ -88,12 +94,18 @@
                 navigateToNextPage();
             }, { once: true });
         } else {
-            const deletedPercentage = ((deletedCount / totalMessagesCount) * 100).toFixed(2);
-            console.log(`Aucune page suivante. Total de pages analysées: ${pageCount}`);
-            console.log(`Total de messages postés: ${totalMessagesCount}`);
-            console.log(`Messages supprimés par le script: ${deletedByScriptCount}`);
-            console.log(`Total de messages qui étaient déjà supprimés: ${deletedCount}`);
-            console.log(`Pourcentage de messages qui étaient déjà supprimés: ${deletedPercentage}%`);
+            const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
+            const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
+            const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
+
+            console.log(`Aucune page suivante. Total de pages visitées: ${pageCount}`);
+            console.log(`Total de messages: ${totalMessagesCount}`);
+            console.log(`Total de messages supprimés (suppression): ${deletedStandardCount}`);
+            console.log(`Total de messages supprimés (DDB): ${deletedGtaCount}`);
+            console.log(`Total de messages supprimés (global): ${deletedTotalCount}`);
+            console.log(`Pourcentage de messages supprimés (suppression): ${deletedStandardPercentage}%`);
+            console.log(`Pourcentage de messages supprimés (DDB): ${deletedGtaPercentage}%`);
+            console.log(`Pourcentage de messages supprimés (global): ${deletedTotalPercentage}%`);
         }
     }
 
