@@ -97,14 +97,17 @@
             const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
             const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
             const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
+            const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
 
             console.log(`Aucune page suivante. Total de pages visitées: ${pageCount}`);
             console.log(`Total de messages: ${totalMessagesCount}`);
-            console.log(`Total de messages supprimés (suppression): ${deletedStandardCount}`);
-            console.log(`Total de messages supprimés (DDB): ${deletedGtaCount}`);
+            console.log(`Total de messages qui étaient déjà supprimés (suppression): ${deletedStandardCount}`);
+            console.log(`Total de messages qui étaient déjà supprimés (DDB): ${deletedGtaCount}`);
+            console.log(`Total de messages supprimés par le script: ${deletedByScriptCount}`);
             console.log(`Total de messages supprimés (global): ${deletedTotalCount}`);
-            console.log(`Pourcentage de messages supprimés (suppression): ${deletedStandardPercentage}%`);
-            console.log(`Pourcentage de messages supprimés (DDB): ${deletedGtaPercentage}%`);
+            console.log(`Pourcentage de messages qui étaient déjà supprimés (suppression): ${deletedStandardPercentage}%`);
+            console.log(`Pourcentage de messages qui étaient déjà supprimés (DDB): ${deletedGtaPercentage}%`);
+            console.log(`Pourcentage de messages supprimés par le script: ${deletedByScriptPercentage}%`);
             console.log(`Pourcentage de messages supprimés (global): ${deletedTotalPercentage}%`);
         }
     }
