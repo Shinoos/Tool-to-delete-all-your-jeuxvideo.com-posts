@@ -6,9 +6,24 @@
     let deletedByScriptCount = 0;
     let totalMessagesCount = 0;
 
+    function jvCake(classe) {
+        const base16 = '0A12B34C56D78E9F';
+        let lien = '';
+        const s = classe.split(' ')[1];
+        for (let i = 0; i < s.length; i += 2) {
+            lien += String.fromCharCode(base16.indexOf(s.charAt(i)) * 16 + base16.indexOf(s.charAt(i + 1)));
+        }
+        return lien;
+    }
+
     async function analyzeMessages(doc) {
         const messages = doc.querySelectorAll('.bloc-message-forum');
-        let deletionAttemptCount = 0;
+        const hash = doc.querySelector('#ajax_hash_moderation_forum')?.value;
+
+        if (!hash) {
+            console.error("Impossible de récupérer le hash correspondant.");
+            return;
+        }
 
         const deletionPromises = [];
 
@@ -22,96 +37,84 @@
                 deletedTotalCount++;
             } else {
                 const messageId = message.getAttribute('data-id');
-                const messageLink = `https://www.jeuxvideo.com/forums/message/${messageId}`;
-                deletionAttemptCount++;
-                console.log(`#${deletionAttemptCount} Tentative de suppression du message avec ID: ${messageId}`);
-                deletionPromises.push(deleteMessageInHiddenIframe(messageLink, deletionAttemptCount, messageId));
+                console.log(`Tentative de suppression du message avec ID: ${messageId}`);
+                deletionPromises.push(deleteMessage(hash, messageId));
             }
         }
 
         await Promise.all(deletionPromises);
     }
 
-    async function deleteMessageInHiddenIframe(messageLink, attemptNumber, messageId) {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = messageLink;
-        document.body.appendChild(iframe);
+    async function deleteMessage(hash, messageId) {
+        try {
+            const response = await fetch(`https://www.jeuxvideo.com/forums/modal_del_message.php?type=delete&ajax_hash=${hash}&tab_message[]=${messageId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': '*/*',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
 
-        await new Promise(resolve => {
-            iframe.addEventListener('load', resolve, { once: true });
-        });
-
-        const deleteButton = iframe.contentWindow.document.querySelector('.picto-msg-croix[data-type="delete"]');
-        if (deleteButton) {
-            deleteButton.click();
-            await waitForButtonToDisappear(iframe, messageLink, attemptNumber, messageId);
+            if (response.ok) {
+                deletedByScriptCount++;
+                console.log(`Message supprimé avec succès : (ID: ${messageId})`);
+            } else {
+                console.log(`Échec de la suppression du message : (ID: ${messageId})`);
+            }
+        } catch (error) {
+            console.error(`Erreur lors de la suppression du message (ID: ${messageId}):`, error);
         }
     }
 
-    async function waitForButtonToDisappear(iframe, messageLink, attemptNumber, messageId) {
-        return new Promise((resolve) => {
-            let buttonDisappeared = false;
-
-            const checkButtonInterval = setInterval(() => {
-                const deleteButton = iframe.contentWindow.document.querySelector('.picto-msg-croix[data-type="delete"]');
-                if (!deleteButton && !buttonDisappeared) {
-                    buttonDisappeared = true;
-                    deletedByScriptCount++;
-                    console.log(`#${attemptNumber} Message supprimé avec succès: (ID: ${messageId})`);
-                    clearInterval(checkButtonInterval);
-                    resolve();
-                }
-            }, 200);
-        });
-    }
-
-    async function processCurrentPage() {
-        const doc = document;
+    async function processCurrentPage(html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
         await analyzeMessages(doc);
     }
 
-    async function navigateToNextPage() {
-        const nextLink = document.querySelector('.xXx.pagi-suivant-actif');
+    async function navigateToNextPage(url) {
+        pageCount++;
+        console.log(`Chargement de la page ${pageCount} : ${url}`);
         
-        if (nextLink) {
-            pageCount++;
-            console.log(`Navigation vers la page ${pageCount}: ${nextLink.href}`);
-
-            const response = await fetch(nextLink.href);
+        try {
+            const response = await fetch(url);
             const text = await response.text();
+            await processCurrentPage(text);
 
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'text/html');
-
-            await analyzeMessages(doc);
-
-            document.open();
-            document.write(doc.documentElement.outerHTML);
-            document.close();
-
-            window.addEventListener('load', () => {
-                navigateToNextPage();
-            }, { once: true });
-        } else {
-            const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
-            const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
-            const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
-            const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
-
-            console.log(`Aucune page suivante. Total de pages visitées: ${pageCount}`);
-            console.log(`Total de messages: ${totalMessagesCount}`);
-            console.log(`Total de messages qui étaient déjà supprimés (suppression): ${deletedStandardCount}`);
-            console.log(`Total de messages qui étaient déjà supprimés (DDB): ${deletedGtaCount}`);
-            console.log(`Total de messages supprimés par le script: ${deletedByScriptCount}`);
-            console.log(`Total de messages supprimés (global): ${deletedTotalCount}`);
-            console.log(`Pourcentage de messages qui étaient déjà supprimés (suppression): ${deletedStandardPercentage}%`);
-            console.log(`Pourcentage de messages qui étaient déjà supprimés (DDB): ${deletedGtaPercentage}%`);
-            console.log(`Pourcentage de messages supprimés par le script: ${deletedByScriptPercentage}%`);
-            console.log(`Pourcentage de messages supprimés (global): ${deletedTotalPercentage}%`);
+            const doc = new DOMParser().parseFromString(text, 'text/html');
+            let nextElement = doc.querySelector('.pagi-after .pagi-suivant-actif');
+            if (nextElement) {
+                let nextUrl = nextElement.getAttribute('href');
+                if (nextElement.classList.contains('JvCare')) {
+                    nextUrl = jvCake(nextElement.className);
+                }
+                await navigateToNextPage(nextUrl);
+            } else {
+                summarizeResults();
+            }
+        } catch (err) {
+            console.error('Erreur lors du chargement de la page :', err);
         }
     }
 
-    await processCurrentPage();
-    await navigateToNextPage();
+    function summarizeResults() {
+        const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
+
+        console.log(`Analyse terminée. Total de pages visitées : ${pageCount}`);
+        console.log(`Total de messages : ${totalMessagesCount}`);
+        console.log(`Messages supprimés (standard) : ${deletedStandardCount}`);
+        console.log(`Messages supprimés (DDB) : ${deletedGtaCount}`);
+        console.log(`Messages supprimés par le script : ${deletedByScriptCount}`);
+        console.log(`Messages supprimés (global) : ${deletedTotalCount}`);
+        console.log(`Pourcentage de messages supprimés (standard) : ${deletedStandardPercentage}%`);
+        console.log(`Pourcentage de messages supprimés (DDB) : ${deletedGtaPercentage}%`);
+        console.log(`Pourcentage de messages supprimés par le script : ${deletedByScriptPercentage}%`);
+        console.log(`Pourcentage de messages supprimés (global) : ${deletedTotalPercentage}%`);
+    }
+
+    await navigateToNextPage(window.location.href);
 })();
