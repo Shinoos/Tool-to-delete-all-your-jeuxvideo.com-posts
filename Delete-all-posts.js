@@ -99,17 +99,17 @@
     }
 
     function summarizeResults() {
-        const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
-        const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
-        const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
-        const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
+    const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
+    const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
+    const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
+    const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
 
-        console.log(`Analyse terminée. Total de pages parcourues : ${pageCount}`);
-        console.log(`Total de messages postés : ${totalMessagesCount}`);
-        console.log(`Messages qui étaient déjà supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)`);
-        console.log(`Messages qui étaient déjà supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)`);
-        console.log(`Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)`);
-        console.log(`Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`);
+    console.log(`Analyse terminée. Total de pages parcourues : ${pageCount}\n` +
+                `Total de messages postés par le compte : ${totalMessagesCount}\n` +
+                `Messages qui étaient déjà supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)\n` +
+                `Messages qui étaient déjà supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)\n` +
+                `Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)\n` +
+                `Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`);
     }
 
     await navigateToNextPage(window.location.href);
