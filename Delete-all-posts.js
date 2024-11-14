@@ -21,7 +21,7 @@
         const hash = doc.querySelector('#ajax_hash_moderation_forum')?.value;
 
         if (!hash) {
-            console.error("Impossible de récupérer le hash correspondant.");
+            console.log("Impossible de récupérer le hash correspondant.");
             return;
         }
 
@@ -63,7 +63,7 @@
                 console.log(`Échec de la suppression du message : (ID: ${messageId})`);
             }
         } catch (error) {
-            console.error(`Erreur lors de la suppression du message (ID: ${messageId}):`, error);
+            console.log(`Erreur lors de la suppression du message (ID: ${messageId}):`, error);
         }
     }
 
@@ -73,7 +73,7 @@
         await analyzeMessages(doc);
     }
 
-    async function navigateToNextPage(url) {
+    async function navigateToNextPage(url, attempt = 1, delay = 1000) {
         pageCount++;
         console.log(`Chargement de la page ${pageCount} : ${url}`);
         
@@ -94,22 +94,28 @@
                 summarizeResults();
             }
         } catch (err) {
-            console.error('Erreur lors du chargement de la page :', err);
+            if (attempt < 100) {
+                console.log(`Erreur ${attempt}/100 lors du chargement de la page : ${err}. Nouvelle tentative dans ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                await navigateToNextPage(url, attempt + 1, delay + 1000);
+            } else {
+                console.log('Échec malgré 100 tentatives de chargement de la page.');
+            }
         }
     }
 
     function summarizeResults() {
-    const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
-    const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
-    const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
-    const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedStandardPercentage = ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
+        const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
 
-    console.log(`Analyse terminée. Total de pages parcourues : ${pageCount}\n` +
-                `Total de messages postés par le compte : ${totalMessagesCount}\n` +
-                `Messages qui étaient déjà supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)\n` +
-                `Messages qui étaient déjà supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)\n` +
-                `Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)\n` +
-                `Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`);
+        console.log(`Analyse terminée. Total de pages parcourues : ${pageCount}\n` +
+                    `Total de messages postés par le compte : ${totalMessagesCount}\n` +
+                    `Messages qui étaient déjà supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)\n` +
+                    `Messages qui étaient déjà supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)\n` +
+                    `Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)\n` +
+                    `Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`);
     }
 
     await navigateToNextPage(window.location.href);
