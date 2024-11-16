@@ -85,6 +85,7 @@
         } else if (!success) {
             console.error(`Échec définitif de la suppression du message (ID : ${messageId}).`);
             failedAfterRetry.push(messageId);
+            failedMessages = failedMessages.filter(id => id !== messageId);
         }
 
         return success;
@@ -147,7 +148,6 @@
         const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
         const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
         const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
-        const failedMessagesCount = failedMessages.length;
         const failedAfterRetryCount = failedAfterRetry.length;
 
         console.log(
@@ -159,11 +159,8 @@
             `Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`
         );
 
-        if (failedMessagesCount > 0 || failedAfterRetryCount > 0) {
-            console.log(
-                `Messages échoués en premier essai : ${failedMessagesCount} (${((failedMessagesCount / totalMessagesCount) * 100).toFixed(2)}%)` +
-                (failedAfterRetryCount > 0 ? `, Messages échoués malgré réessais : ${failedAfterRetryCount} (${((failedAfterRetryCount / totalMessagesCount) * 100).toFixed(2)}%)` : '')
-            );
+        if (failedAfterRetryCount > 0) {
+            console.log(`Messages échoués malgré réessais : ${failedAfterRetryCount} (${((failedAfterRetryCount / totalMessagesCount) * 100).toFixed(2)}%)`);
         }
     }
 
