@@ -86,6 +86,17 @@
             console.error(`Échec définitif de la suppression du message (ID : ${messageId}).`);
             failedAfterRetry.push(messageId);
         }
+
+        return success;
+    }
+
+    async function retryFailedMessages() {
+        for (const messageId of [...failedMessages]) {
+            const success = await deleteMessage(hash, messageId, 5);
+            if (success) {
+                failedMessages = failedMessages.filter(id => id !== messageId);
+            }
+        }
     }
 
     async function processCurrentPage(html) {
@@ -113,7 +124,7 @@
                 await navigateToNextPage(nextUrl);
             } else {
                 if (failedMessages.length > 0) {
-                    console.log('Suppression des messages échoués précédemment...');
+                    console.log('Tentative de suppression des messages échoués précédemment...');
                     await retryFailedMessages();
                 }
                 summarizeResults();
@@ -128,18 +139,6 @@
                 console.error('Échec malgré 100 tentatives de chargement de la page. Arrêt du script.');
                 return;
             }
-        }
-    }
-
-    async function retryFailedMessages() {
-        for (const messageId of [...failedMessages]) {
-            await deleteMessage(hash, messageId, 5);
-        }
-
-        if (failedMessages.length > 0) {
-            console.log(`Il reste encore ${failedMessages.length} messages échoués.`);
-        } else {
-            console.log('Tous les messages échoués ont été supprimés avec succès.');
         }
     }
 
