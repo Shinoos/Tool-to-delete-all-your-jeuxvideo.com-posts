@@ -5,8 +5,8 @@
     let deletedTotalCount = 0;
     let deletedByScriptCount = 0;
     let totalMessagesCount = 0;
-    let failedMessages = [];
-    let failedAfterRetry = [];
+    const failedMessages = new Set();
+    const failedAfterRetry = new Set();
     const hash = document.querySelector('#ajax_hash_moderation_forum')?.value;
 
     if (!hash) {
@@ -81,21 +81,21 @@
 
         if (!success && maxAttempts === 20) {
             console.error(`Échec de la suppression du message après ${maxAttempts} tentatives. Le message (ID : ${messageId}) sera réessayé plus tard.`);
-            failedMessages.push(messageId);
+            failedMessages.add(messageId);
         } else if (!success) {
             console.error(`Échec définitif de la suppression du message (ID : ${messageId}).`);
-            failedAfterRetry.push(messageId);
-            failedMessages = failedMessages.filter(id => id !== messageId);
+            failedAfterRetry.add(messageId);
+            failedMessages.delete(messageId);
         }
 
         return success;
     }
 
     async function retryFailedMessages() {
-        for (const messageId of [...failedMessages]) {
+        for (const messageId of failedMessages) {
             const success = await deleteMessage(hash, messageId, 5);
             if (success) {
-                failedMessages = failedMessages.filter(id => id !== messageId);
+            failedMessages.delete(messageId);
             }
         }
     }
@@ -124,7 +124,7 @@
                 }
                 await navigateToNextPage(nextUrl);
             } else {
-                if (failedMessages.length > 0) {
+                if (failedMessages.size > 0) {
                     console.log('Tentative de suppression des messages échoués précédemment...');
                     await retryFailedMessages();
                 }
@@ -148,7 +148,6 @@
         const deletedGtaPercentage = ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2);
         const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
         const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
-        const failedAfterRetryCount = failedAfterRetry.length;
 
         console.log(
             `Analyse terminée. Total de pages parcourues : ${pageCount}\n` +
@@ -159,8 +158,8 @@
             `Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`
         );
 
-        if (failedAfterRetryCount > 0) {
-            console.log(`Messages échoués malgré réessais : ${failedAfterRetryCount} (${((failedAfterRetryCount / totalMessagesCount) * 100).toFixed(2)}%)`);
+        if (failedAfterRetry.size > 0) {
+            console.log(`Messages échoués malgré réessais : ${failedAfterRetry.size} (${((failedAfterRetry.size / totalMessagesCount) * 100).toFixed(2)}%)`);
         }
     }
 
