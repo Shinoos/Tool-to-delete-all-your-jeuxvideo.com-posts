@@ -14,6 +14,32 @@
         return;
     }
 
+    const ui = document.createElement('div');
+    ui.style.position = 'fixed';
+    ui.style.bottom = '10px';
+    ui.style.right = '10px';
+    ui.style.padding = '15px';
+    ui.style.background = 'rgba(0, 0, 0, 0.8)';
+    ui.style.color = 'white';
+    ui.style.borderRadius = '10px';
+    ui.style.fontFamily = 'Arial, sans-serif';
+    ui.style.fontSize = '12px';
+    ui.style.zIndex = 9999;
+    document.body.appendChild(ui);
+
+    function updateUI() {
+        ui.innerHTML = `
+            <h4 style="margin: 0; font-size: 14px;">Suivi du script</h4>
+            <p style="margin: 5px 0;">Pages parcourues : ${pageCount}</p>
+            <p style="margin: 5px 0;">Messages analysés : ${totalMessagesCount}</p>
+            <p style="margin: 5px 0;">Messages supprimés (standard) : ${deletedStandardCount}</p>
+            <p style="margin: 5px 0;">Messages supprimés (DDB) : ${deletedGtaCount}</p>
+            <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount}</p>
+            <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount}</p>
+            <p style="margin: 5px 0; color: ${failedMessages.size > 0 ? 'red' : 'white'};">Échecs en attente : ${failedMessages.size}</p>
+            <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'};">Échecs définitifs : ${failedAfterRetry.size}</p>`;
+    }
+
     function jvCake(classe) {
         const base16 = '0A12B34C56D78E9F';
         let link = '';
@@ -26,7 +52,7 @@
 
     async function analyzeMessages(doc) {
         const messages = doc.querySelectorAll('.bloc-message-forum');
-        const deletionPromises = [];
+        let promises = [];
 
         for (const message of messages) {
             totalMessagesCount++;
@@ -38,12 +64,12 @@
                 deletedTotalCount++;
             } else {
                 const messageId = message.getAttribute('data-id');
-                console.log(`Tentative de suppression du message avec ID : ${messageId}.`);
-                deletionPromises.push(deleteMessage(hash, messageId, 20));
+                promises.push(deleteMessage(hash, messageId, 20));
             }
         }
 
-        await Promise.all(deletionPromises);
+        await Promise.all(promises);
+        updateUI();
     }
 
     async function deleteMessage(hash, messageId, maxAttempts) {
@@ -66,56 +92,45 @@
 
                 if (response.ok) {
                     deletedByScriptCount++;
-                    console.log(`Message supprimé avec succès : (ID : ${messageId}).`);
+                    deletedTotalCount++;
                     success = true;
                 } else {
                     throw new Error(`Échec avec le code ${response.status}.`);
                 }
             } catch (error) {
                 const delay = Math.min(2 ** attempt * 100, 5000);
-                console.error(`Tentative ${attempt + 1}/${maxAttempts} pour le message ID : ${messageId} échouée : ${error}, nouvelle tentative dans ${delay} ms.`);
                 attempt++;
                 await new Promise((resolve) => setTimeout(resolve, delay));
             }
         }
 
         if (!success && maxAttempts === 20) {
-            console.error(`Échec de la suppression du message après ${maxAttempts} tentatives. Le message (ID : ${messageId}) sera réessayé plus tard.`);
             failedMessages.add(messageId);
         } else if (!success) {
-            console.error(`Échec définitif de la suppression du message (ID : ${messageId}).`);
             failedAfterRetry.add(messageId);
             failedMessages.delete(messageId);
         }
-
-        return success;
     }
 
     async function retryFailedMessages() {
         for (const messageId of failedMessages) {
             const success = await deleteMessage(hash, messageId, 5);
             if (success) {
-            failedMessages.delete(messageId);
+                failedMessages.delete(messageId);
             }
         }
     }
 
-    async function processCurrentPage(html) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        await analyzeMessages(doc);
-    }
-
     async function navigateToNextPage(url, attempt = 1) {
-        console.log(`Chargement de la page ${pageCount + 1} : ${url}`);
-
         try {
             const response = await fetch(url);
             const text = await response.text();
             pageCount++;
-            await processCurrentPage(text);
+            updateUI();
 
             const doc = new DOMParser().parseFromString(text, 'text/html');
+            await analyzeMessages(doc);
+
             let nextElement = doc.querySelector('.pagi-after .pagi-suivant-actif');
             if (nextElement) {
                 let nextUrl = nextElement.getAttribute('href');
@@ -125,20 +140,17 @@
                 await navigateToNextPage(nextUrl);
             } else {
                 if (failedMessages.size > 0) {
-                    console.log('Tentative de suppression des messages échoués précédemment...');
                     await retryFailedMessages();
                 }
                 summarizeResults();
             }
         } catch (err) {
-            if (attempt < 100) {
+            if (attempt < 20) {
                 const delay = Math.min(2 ** attempt * 100, 5000);
-                console.error(`Réessai de la page en cours (${pageCount + 1}) : ${err}. Nouvelle tentative dans ${delay} ms.`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                await new Promise((resolve) => setTimeout(resolve, delay));
                 await navigateToNextPage(url, attempt + 1);
             } else {
-                console.error('Échec malgré 100 tentatives de chargement de la page. Arrêt du script.');
-                return;
+                console.error('Échec définitif du chargement.');
             }
         }
     }
@@ -149,19 +161,19 @@
         const deletedTotalPercentage = ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2);
         const deletedByScriptPercentage = ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2);
 
-        console.log(
-            `Analyse terminée. Total de pages parcourues : ${pageCount}\n` +
-            `Total de messages postés par le compte : ${totalMessagesCount}\n` +
-            `Messages déjà supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)\n` +
-            `Messages déjà supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)\n` +
-            `Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)\n` +
-            `Messages supprimés (global) : ${deletedTotalCount} (${deletedTotalPercentage}%)`
-        );
-
-        if (failedAfterRetry.size > 0) {
-            console.log(`Messages échoués malgré réessais : ${failedAfterRetry.size} (${((failedAfterRetry.size / totalMessagesCount) * 100).toFixed(2)}%)`);
-        }
+        ui.innerHTML = `
+            <h4 style="margin: 0; font-size: 14px;">Récapitulatif du script</h4>
+            <p style="margin: 5px 0;">Pages parcourues : ${pageCount}</p>
+            <p style="margin: 5px 0;">Messages analysés : ${totalMessagesCount}</p>
+            <p style="margin: 5px 0;">Messages supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)</p>
+            <p style="margin: 5px 0;">Messages supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)</p>
+            <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)</p>
+            <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount} (${deletedTotalPercentage}%)</p>
+            <p style="margin: 5px 0;">Échecs en attente : ${failedMessages.size}</p>
+            <p style="margin: 5px 0;">Échecs définitifs : ${failedAfterRetry.size}</p>
+        `;
     }
 
-    await navigateToNextPage(window.location.href);
+    const currentUrl = window.location.href;
+    await navigateToNextPage(currentUrl);
 })();
