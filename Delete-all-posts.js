@@ -1,5 +1,5 @@
 (async function() {
-    const scriptVersion = 'v1.0.2';
+    const scriptVersion = 'v1.0.3';
     let scriptStatus = "En cours d'exécution";
     let scriptError = false;
     let pageCount = 0;
@@ -52,7 +52,6 @@
     <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'}; display: ${failedAfterRetry.size > 0 ? '' : 'none'};">Échecs définitifs : ${failedAfterRetry.size}</p>
     `;
     }
-
 
     function jvCake(classe) {
         const base16 = '0A12B34C56D78E9F';
@@ -125,9 +124,11 @@
             updateUI();
         } else if (maxAttempts === 20) {
             failedMessages.add(messageId);
+            updateUI();
         } else {
             failedAfterRetry.add(messageId);
             failedMessages.delete(messageId);
+            updateUI();
         }
 
         return success;
@@ -161,10 +162,10 @@
                 }
                 await navigateToNextPage(nextUrl);
             } else {
-                scriptStatus = "Terminé";
                 if (failedMessages.size > 0) {
                     await retryFailedMessages();
                 }
+                scriptStatus = "Terminé";
                 updateUI();
             }
         } catch (err) {
