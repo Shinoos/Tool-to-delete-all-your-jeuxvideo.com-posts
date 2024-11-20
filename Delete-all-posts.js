@@ -1,5 +1,7 @@
 (async function() {
-    const scriptVersion = 'v1.0.1';
+    const scriptVersion = 'v1.0.2';
+    let scriptStatus = "En cours d'exécution";
+    let scriptError = false;
     let pageCount = 0;
     let deletedStandardCount = 0;
     let deletedGtaCount = 0;
@@ -12,6 +14,8 @@
 
     if (!hash) {
         console.error('Impossible de récupérer le hash correspondant.');
+        scriptError = true;
+        updateUI();
         return;
     }
 
@@ -25,29 +29,30 @@
     ui.style.borderRadius = '10px';
     ui.style.fontFamily = 'Arial, sans-serif';
     ui.style.fontSize = '12px';
+    ui.style.boxShadow = '0px 0px 10px 5px rgba(0, 0, 0, 0.5)';
     ui.style.zIndex = 9999;
     document.body.appendChild(ui);
 
     function updateUI() {
-        const deletedStandardPercentage = totalMessagesCount ? ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2) : 0;
-        const deletedGtaPercentage = totalMessagesCount ? ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2) : 0;
-        const deletedTotalPercentage = totalMessagesCount ? ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2) : 0;
-        const deletedByScriptPercentage = totalMessagesCount ? ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2) : 0;
+    const deletedStandardPercentage = totalMessagesCount ? ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2) : 0;
+    const deletedGtaPercentage = totalMessagesCount ? ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2) : 0;
+    const deletedTotalPercentage = totalMessagesCount ? ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2) : 0;
+    const deletedByScriptPercentage = totalMessagesCount ? ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2) : 0;
 
-        ui.innerHTML = `
-            <h4 style="margin: 0; font-size: 14px;">
-                Suivi du script <span style="font-size: 10px; color: #aaa;">${scriptVersion}</span>
-            </h4>
-            <p style="margin: 5px 0;">Pages parcourues : ${pageCount}</p>
-            <p style="margin: 5px 0;">Messages analysés : ${totalMessagesCount}</p>
-            <p style="margin: 5px 0;">Messages supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)</p>
-            <p style="margin: 5px 0;">Messages supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)</p>
-            <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)</p>
-            <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount} (${deletedTotalPercentage}%)</p>
-            <p style="margin: 5px 0; color: ${failedMessages.size > 0 ? 'red' : 'white'};">Échecs en attente : ${failedMessages.size}</p>
-            <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'};">Échecs définitifs : ${failedAfterRetry.size}</p>
-        `;
+    ui.innerHTML = `
+    <h4 style="margin: 0; font-size: 14px;">Delete-all-posts.js <span style="font-size: 10px; color: #aaa;">${scriptVersion}</span></h4>
+    <p style="margin: 5px 0;">État du script : <span style="color: ${scriptError ? 'red' : '#90EE90'};">${scriptError ? "Erreur" : scriptStatus}</span></p>
+    <p style="margin: 5px 0;">Pages parcourues : ${pageCount}</p>
+    <p style="margin: 5px 0;">Messages analysés : ${totalMessagesCount}</p>
+    <p style="margin: 5px 0;">Messages supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)</p>
+    <p style="margin: 5px 0;">Messages supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)</p>
+    <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)</p>
+    <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount} (${deletedTotalPercentage}%)</p>
+    <p style="margin: 5px 0; color: ${failedMessages.size > 0 ? 'red' : 'white'}; display: ${failedMessages.size > 0 ? '' : 'none'};">Échecs en attente : ${failedMessages.size}</p>
+    <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'}; display: ${failedAfterRetry.size > 0 ? '' : 'none'};">Échecs définitifs : ${failedAfterRetry.size}</p>
+    `;
     }
+
 
     function jvCake(classe) {
         const base16 = '0A12B34C56D78E9F';
@@ -107,6 +112,7 @@
                     throw new Error(`Échec avec le code ${response.status}.`);
                 }
             } catch (error) {
+
                 const delay = Math.min(2 ** attempt * 100, 5000);
                 attempt++;
                 await new Promise((resolve) => setTimeout(resolve, delay));
@@ -155,10 +161,11 @@
                 }
                 await navigateToNextPage(nextUrl);
             } else {
+                scriptStatus = "Terminé";
                 if (failedMessages.size > 0) {
                     await retryFailedMessages();
                 }
-                summarizeResults();
+                updateUI();
             }
         } catch (err) {
             if (attempt < 20) {
@@ -166,30 +173,11 @@
                 await new Promise((resolve) => setTimeout(resolve, delay));
                 await navigateToNextPage(url, attempt + 1);
             } else {
+                scriptError = true;
+                updateUI();
                 console.error('Échec définitif du chargement.');
             }
         }
-    }
-
-    function summarizeResults() {
-        const deletedStandardPercentage = totalMessagesCount ? ((deletedStandardCount / totalMessagesCount) * 100).toFixed(2) : 0;
-        const deletedGtaPercentage = totalMessagesCount ? ((deletedGtaCount / totalMessagesCount) * 100).toFixed(2) : 0;
-        const deletedTotalPercentage = totalMessagesCount ? ((deletedTotalCount / totalMessagesCount) * 100).toFixed(2) : 0;
-        const deletedByScriptPercentage = totalMessagesCount ? ((deletedByScriptCount / totalMessagesCount) * 100).toFixed(2) : 0;
-
-        ui.innerHTML = `
-            <h4 style="margin: 0; font-size: 14px;">
-                Récapitulatif du script <span style="font-size: 10px; color: #aaa;">${scriptVersion}</span>
-            </h4>
-            <p style="margin: 5px 0;">Pages parcourues : ${pageCount}</p>
-            <p style="margin: 5px 0;">Messages analysés : ${totalMessagesCount}</p>
-            <p style="margin: 5px 0;">Messages supprimés (standard) : ${deletedStandardCount} (${deletedStandardPercentage}%)</p>
-            <p style="margin: 5px 0;">Messages supprimés (DDB) : ${deletedGtaCount} (${deletedGtaPercentage}%)</p>
-            <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount} (${deletedByScriptPercentage}%)</p>
-            <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount} (${deletedTotalPercentage}%)</p>
-            <p style="margin: 5px 0;">Échecs en attente : ${failedMessages.size}</p>
-            <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'};">Échecs définitifs : ${failedAfterRetry.size}</p>
-        `;
     }
 
     const currentUrl = window.location.href;
