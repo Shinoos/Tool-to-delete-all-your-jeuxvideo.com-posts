@@ -1,5 +1,6 @@
-(async function() {
-    const scriptVersion = 'v1.0.4';
+(async function main() {
+    const scriptVersion = "v1.0.5";
+    checkScriptVersion();
     let scriptStatus = "En cours d'exécution";
     let scriptError = false;
     let pageCount = 0;
@@ -175,6 +176,23 @@
         }
     }
 
+    async function checkScriptVersion() {
+        try {
+            const response = await fetch('https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/Delete-all-posts.js');
+            const onlineScript = await response.text();
+            const onlineScriptVersion = onlineScript.match(/const scriptVersion = "(.+)";/)[1];
+
+            if (onlineScriptVersion !== scriptVersion) {
+                console.warn(`Vous utilisez actuellement une ancienne version du script (${scriptVersion}). Une nouvelle version du script (${onlineScriptVersion}) est disponible : https://github.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts`)
+            } else {
+                console.warn(`Vous utilisez bien la dernière version du script : ${scriptVersion} 👍`);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la vérification de la version du script :', error);
+        }
+    }
+
     const currentUrl = window.location.href;
     await navigateToNextPage(currentUrl);
+
 })();
