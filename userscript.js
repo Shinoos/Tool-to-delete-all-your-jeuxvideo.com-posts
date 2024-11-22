@@ -2,7 +2,7 @@
 // @name         Tool-to-delete-all-your-jeuxvideo.com-posts
 // @description  Tool to delete all your posts on the jeuxvideo.com forums.
 // @author       Shinoos
-// @version      1.0.0
+// @version      1.0.1
 // @match        https://www.jeuxvideo.com/profil/*?mode=historique_forum
 // @updateURL    https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.js
 // @downloadURL  https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.js
@@ -23,6 +23,7 @@
         button.style.padding = "8px 16px";
         button.style.fontSize = "14px";
         button.style.cursor = "pointer";
+        button.style.fontWeight = "bold";
         button.style.backgroundColor = "#2e3238";
         button.style.color = "white";
         button.style.border = "none";
