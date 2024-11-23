@@ -4,8 +4,8 @@
 // @author       Shinoos
 // @version      1.0.1
 // @match        https://www.jeuxvideo.com/profil/*?mode=historique_forum
-// @updateURL    https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.js
-// @downloadURL  https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.js
+// @updateURL    https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.user.js
+// @downloadURL  https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.user.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
 // ==/UserScript==
