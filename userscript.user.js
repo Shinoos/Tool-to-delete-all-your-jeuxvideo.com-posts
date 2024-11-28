@@ -5,8 +5,8 @@
 // @version      1.0.2
 // @match        https://www.jeuxvideo.com/profil/*?mode=historique_forum
 // @connect      raw.githubusercontent.com
-// @updateURL    https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.user.js
-// @downloadURL  https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/userscript.user.js
+// @updateURL    https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/refs/heads/main/userscript.user.js
+// @downloadURL  https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/refs/heads/main/userscript.user.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
 // ==/UserScript==
@@ -69,14 +69,14 @@
     function executeDeleteScript() {
         GM_xmlhttpRequest({
             method: "GET",
-            url: "https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/main/Delete-all-posts.js",
+            url: "https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/refs/heads/main/Delete-all-posts.js",
             onload: function(response) {
                 const script = document.createElement('script');
                 script.textContent = response.responseText;
                 document.body.appendChild(script);
             },
             onerror: function() {
-                alert("Impossible de charger le script.");
+                alert("Tool-to-delete-all-your-jeuxvideo.com-posts → Impossible de charger le script.");
             }
         });
     }
