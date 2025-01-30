@@ -1,5 +1,5 @@
 (async function main() {
-    const scriptVersion = "v1.0.6";
+    const scriptVersion = "v1.0.7";
     checkScriptVersion();
     let scriptStatus = "En cours d'exécution";
     let scriptError = false;
@@ -142,6 +142,17 @@
     async function navigateToNextPage(url, attempt = 1) {
         try {
             const response = await fetch(url);
+
+            if (response.status === 429) {
+                console.warn("Trop de requêtes envoyées, attente de 10 secondes...");
+                if (attempt < 5) {
+                    await new Promise(resolve => setTimeout(resolve, 10000));
+                    return navigateToNextPage(url, attempt + 1);
+                } else {
+                    throw new Error('Échec après plusieurs tentatives (429).');
+                }
+            }
+
             const text = await response.text();
             pageCount++;
             updateUI();
