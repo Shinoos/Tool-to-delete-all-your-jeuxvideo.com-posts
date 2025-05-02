@@ -1,9 +1,10 @@
 (async function main() {
-  const scriptVersion = "v1.1.0";
+  const scriptVersion = "v1.1.1";
   checkScriptVersion();
   let scriptStatus = "En cours d'exécution";
   let scriptError = false;
   let currentUrl = window.location.href;
+  let currentPageHtml = null;
   let pageCount = 0;
   let deletedStandardCount = 0;
   let deletedGtaCount = 0;
@@ -15,6 +16,7 @@
   let waitingInterval = null;
   let isPaused = false;
   let isPendingRequest = false;
+  let lastPageAnalyzed = false;
   const processedMessages = new Set();
   const failedMessages = new Set();
   const failedAfterRetry = new Set();
@@ -59,9 +61,45 @@
       isPaused = false;
       scriptStatus = "En cours d'exécution";
       updateUI();
-      navigateToNextPage(currentUrl);
+
+      if (lastPageAnalyzed && currentPageHtml) {
+        const doc = new DOMParser().parseFromString(currentPageHtml, 'text/html');
+        let nextUrl = getNextPageUrl(doc);
+        
+        if (nextUrl) {
+          navigateToNextPage(nextUrl);
+        } else {
+          if (failedMessages.size > 0) {
+            retryFailedMessages();
+          }
+          scriptStatus = "Terminé";
+          updateUI();
+        }
+      } 
+      else if (currentPageHtml && !lastPageAnalyzed) {
+        const doc = new DOMParser().parseFromString(currentPageHtml, 'text/html');
+        analyzeMessages(doc).then(() => {
+          lastPageAnalyzed = true;
+          window.resumeScript();
+        });
+      } 
+      else {
+        navigateToNextPage(currentUrl);
+      }
     }
   };
+
+  function getNextPageUrl(doc) {
+    let nextElement = doc.querySelector('.pagi-after .pagi-suivant-actif');
+    if (nextElement) {
+      let nextUrl = nextElement.getAttribute('href');
+      if (nextElement.classList.contains('JvCare')) {
+        nextUrl = jvCake(nextElement.className);
+      }
+      return nextUrl;
+    }
+    return null;
+  }
 
   function startWaitingTimer(seconds) {
     clearInterval(waitingInterval);
@@ -271,6 +309,7 @@
 
     try {
       isPendingRequest = true;
+      lastPageAnalyzed = false;
       currentUrl = url;
       updateUI();
       const response = await fetch(url);
@@ -298,6 +337,8 @@
         startWaitingTimer(10);
         if (attempt < 5) {
           await new Promise(resolve => setTimeout(resolve, 10000));
+          lastPageAnalyzed = false;
+          currentPageHtml = null;
           return navigateToNextPage(url, attempt + 1);
         } else {
           throw new Error('Échec après plusieurs tentatives (429).');
@@ -306,18 +347,20 @@
 
       error503Count = 0;
       const text = await response.text();
+      currentPageHtml = text;
       pageCount++;
       updateUI();
 
       const doc = new DOMParser().parseFromString(text, 'text/html');
       await analyzeMessages(doc);
+      lastPageAnalyzed = true;
 
-      let nextElement = doc.querySelector('.pagi-after .pagi-suivant-actif');
-      if (nextElement) {
-        let nextUrl = nextElement.getAttribute('href');
-        if (nextElement.classList.contains('JvCare')) {
-          nextUrl = jvCake(nextElement.className);
-        }
+      if (isPaused) {
+        return;
+      }
+
+      let nextUrl = getNextPageUrl(doc);
+      if (nextUrl) {
         await navigateToNextPage(nextUrl);
       } else {
         if (failedMessages.size > 0) {
