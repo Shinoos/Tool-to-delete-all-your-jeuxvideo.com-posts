@@ -23,6 +23,7 @@
   let filterOptions = {
     maxDate: null,
     noDeleteOwnTopicsAndMessages: false,
+    minMessageLength: null,
   };
   let startTime = null;
   const processedMessages = new Set();
@@ -203,7 +204,8 @@
         display: block;
         margin: 0;
       }
-      .modal input[type="date"] {
+      .modal input[type="date"],
+      .modal input[type="number"] {
         width: 100%;
         padding: 8px;
         border-radius: 5px;
@@ -212,6 +214,9 @@
         color: white;
       }
       .modal label:nth-of-type(2) {
+        margin-top: 10px;
+      }
+      .modal label:nth-of-type(3) {
         margin-top: 10px;
       }
       .modal button {
@@ -226,7 +231,20 @@
       .modal button:hover {
         background: rgba(0, 0, 0, 0.95);
       }
-      `;
+      .modal label[title]:hover:after {
+        content: attr(title);
+        position: absolute;
+        background: #333;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        z-index: 10002;
+        white-space: nowrap;
+        margin-left: 10px;
+        margin-top: -5px;
+      }
+    `;
     document.head.appendChild(style);
   }
 
@@ -234,7 +252,7 @@
     <button class="pause" style="display: none;">Pause</button>
     <button class="resume" style="display: none;">Reprendre</button>
     <button class="start">Lancer la suppression</button>
-    `;
+  `;
   const pauseButton = controls.querySelector('button.pause');
   const resumeButton = controls.querySelector('button.resume');
   const startButton = controls.querySelector('button.start');
@@ -246,9 +264,9 @@
   header.style.margin = '0';
   header.style.fontSize = '16px';
   header.innerHTML = `
-  <span style="font-size: 13px; color: #aaa; margin-right: 8px;">${scriptVersion}</span>
-  <span>Delete-all-posts.js</span>
-  <span class="settings-icon">⚙️</span>
+    <span style="font-size: 13px; color: #aaa; margin-right: 8px;">${scriptVersion}</span>
+    <span>Delete-all-posts.js</span>
+    <span class="settings-icon">⚙️</span>
   `;
 
   statusDisplay.appendChild(header);
@@ -260,24 +278,29 @@
   settingsModal.className = 'modal';
   settingsModal.style.display = 'none';
   settingsModal.innerHTML = `
-  <h4>Options de suppression</h4>
-  <label>
-    Supprimer uniquement les messages antérieurs à :
-    <input type="date" id="max-date">
-  </label>
-  <label>
-    <input type="checkbox" id="no-delete-own-topics-and-messages">
-    Ne pas supprimer mes topics ni leurs messages
-  </label>
-  <div style="text-align: right;">
-    <button id="save-settings">Enregistrer</button>
-    <button id="cancel-settings">Annuler</button>
-  </div>
+    <h4>Options de suppression</h4>
+    <label>
+      Supprimer uniquement les messages antérieurs à :
+      <input type="date" id="max-date">
+    </label>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+    <span title="Supprime uniquement les messages de moins de X caractères (hors espaces, liens (stickers compris), monosmiley et citations).">Supprime uniquement si moins de :</span>
+      <input type="number" id="min-message-length" min="0" placeholder="Caractères" style="width: 110px;">
+    </label>
+    <label>
+      <input type="checkbox" id="no-delete-own-topics-and-messages">
+      Ne pas supprimer mes topics ni leurs messages
+    </label>
+    <div style="text-align: right;">
+      <button id="save-settings">Enregistrer</button>
+      <button id="cancel-settings">Annuler</button>
+    </div>
   `;
   document.body.appendChild(settingsModal);
 
   const maxDateInput = settingsModal.querySelector('#max-date');
   const noDeleteOwnTopicsAndMessagesCheckbox = settingsModal.querySelector('#no-delete-own-topics-and-messages');
+  const minMessageLengthInput = settingsModal.querySelector('#min-message-length');
   const saveSettingsButton = settingsModal.querySelector('#save-settings');
   const cancelSettingsButton = settingsModal.querySelector('#cancel-settings');
 
@@ -287,6 +310,7 @@
   settingsIcon.addEventListener('click', () => {
     maxDateInput.value = filterOptions.maxDate ? filterOptions.maxDate.toISOString().split('T')[0] : '';
     noDeleteOwnTopicsAndMessagesCheckbox.checked = filterOptions.noDeleteOwnTopicsAndMessages;
+    minMessageLengthInput.value = filterOptions.minMessageLength || '';
     settingsModal.style.display = 'block';
     blurBackground.style.zIndex = '10000';
     pauseButton.style.display = 'none';
@@ -314,6 +338,8 @@
     }
     filterOptions.maxDate = maxDate;
     filterOptions.noDeleteOwnTopicsAndMessages = noDeleteOwnTopicsAndMessagesCheckbox.checked;
+    const minLengthInput = minMessageLengthInput.value;
+    filterOptions.minMessageLength = minLengthInput ? parseInt(minLengthInput, 10) : null;
     settingsModal.style.display = 'none';
     blurBackground.style.zIndex = '9999';
     updateUI();
@@ -373,15 +399,15 @@
       spinner.style.zIndex = '10001';
       spinner.style.display = 'none';
       spinner.innerHTML = `
-      <div style="width: 48px; height: 48px; border: 5px solid rgba(255, 255, 255, 0.3); border-top: 5px solid #4caf50; border-radius: 50%; animation: spinModern 1s ease-in-out infinite; box-shadow: 0 0 10px rgba(0,0,0,0.4);"></div>`;
+        <div style="width: 48px; height: 48px; border: 5px solid rgba(255, 255, 255, 0.3); border-top: 5px solid #4caf50; border-radius: 50%; animation: spinModern 1s ease-in-out infinite; box-shadow: 0 0 10px rgba(0,0,0,0.4);"></div>`;
       document.body.appendChild(spinner);
 
       const style = document.createElement('style');
       style.textContent = `
-      @keyframes spinModern {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }`;
+        @keyframes spinModern {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }`;
       document.head.appendChild(style);
     }
 
@@ -473,7 +499,7 @@
     const statusColor = scriptError ? 'red' : isPaused ? 'orange' : '#90EE90';
     const pagesTotal = totalPages || 0;
     const messageProgressPercentage = totalMessagesCount ? ((deletedTotalCount + ignoredByFiltersCount) / totalMessagesCount * 100).toFixed(2) : 0;
-    const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0
+    const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0;
     const messagesProcessed = deletedTotalCount + ignoredByFiltersCount;
 
     estimatedRemainingTime = (messagesProcessed && totalMessagesCount && startTime) ? (totalMessagesCount - messagesProcessed) * (elapsedSeconds / messagesProcessed) : null;
@@ -484,25 +510,25 @@
       const timeBar = scriptStatus === "Terminé" ? formatTime(elapsedSeconds) : (estimatedRemainingTime !== null ? formatTime(estimatedRemainingTime) : '');
       const labelBar = scriptStatus === "Terminé" ? 'Durée totale : ' : 'Durée estimée restante : ';
       progressBar = `
-      <div class="progress-bar">
-        <div class="progress-fill" style="width: ${progressPercent}%"></div>
-        <div class="progress-label">${labelBar}${timeBar}</div>
-      </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progressPercent}%"></div>
+          <div class="progress-label">${labelBar}${timeBar}</div>
+        </div>
       `;
     }
 
     dynamicContent.innerHTML = `
-    <p style="margin: 5px 0;">État du script : <span style="color: ${statusColor};">${scriptStatus} ${spinnerHtml}</span></p>
-    <p style="margin: 5px 0;">Pages parcourues : ${pageCount} / ${pagesTotal}</p>
-    <p style="margin: 5px 0;">Messages analysés : ${deletedTotalCount + ignoredByFiltersCount} / ${totalMessagesCount}</p>
-    <p style="margin: 5px 0;">Messages déjà supprimés : ${deletedStandardCount} <span style="font-size:13px;color:#aaa;">(${deletedStandardPercentage}%)</span></p>
-    <p style="margin: 5px 0;">Messages déjà supprimés (GTA) : ${deletedGtaCount} <span style="font-size:13px;color:#aaa;">(${deletedGtaPercentage}%)</span></p>
-    <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount} <span style="font-size:13px;color:#aaa;">(${deletedByScriptPercentage}%)</span></p>
-    <p style="margin: 5px 0;">Messages ignorés par les filtres : ${ignoredByFiltersCount} <span style="font-size:13px;color:#aaa;">(${ignoredByFiltersPercentage}%)</span></p>
-    <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount} <span style="font-size:13px;color:#aaa;">(${deletedTotalPercentage}%)</span></p>
-    ${progressBar}
-    <p style="margin: 5px 0; color: ${failedMessages.size > 0 ? 'red' : 'white'}; display: ${failedMessages.size > 0 ? '' : 'none'};">Échecs en attente : ${failedMessages.size}</p>
-    <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'}; display: ${failedAfterRetry.size > 0 ? '' : 'none'};">Échecs définitifs : ${failedAfterRetry.size}</p>
+      <p style="margin: 5px 0;">État du script : <span style="color: ${statusColor};">${scriptStatus} ${spinnerHtml}</span></p>
+      <p style="margin: 5px 0;">Pages parcourues : ${pageCount} / ${pagesTotal}</p>
+      <p style="margin: 5px 0;">Messages analysés : ${deletedTotalCount + ignoredByFiltersCount} / ${totalMessagesCount}</p>
+      <p style="margin: 5px 0;">Messages déjà supprimés : ${deletedStandardCount} <span style="font-size:13px;color:#aaa;">(${deletedStandardPercentage}%)</span></p>
+      <p style="margin: 5px 0;">Messages déjà supprimés (GTA) : ${deletedGtaCount} <span style="font-size:13px;color:#aaa;">(${deletedGtaPercentage}%)</span></p>
+      <p style="margin: 5px 0;">Messages supprimés par le script : ${deletedByScriptCount} <span style="font-size:13px;color:#aaa;">(${deletedByScriptPercentage}%)</span></p>
+      <p style="margin: 5px 0;">Messages ignorés par les filtres : ${ignoredByFiltersCount} <span style="font-size:13px;color:#aaa;">(${ignoredByFiltersPercentage}%)</span></p>
+      <p style="margin: 5px 0;">Total supprimés : ${deletedTotalCount} <span style="font-size:13px;color:#aaa;">(${deletedTotalPercentage}%)</span></p>
+      ${progressBar}
+      <p style="margin: 5px 0; color: ${failedMessages.size > 0 ? 'red' : 'white'}; display: ${failedMessages.size > 0 ? '' : 'none'};">Échecs en attente : ${failedMessages.size}</p>
+      <p style="margin: 5px 0; color: ${failedAfterRetry.size > 0 ? 'red' : 'white'}; display: ${failedAfterRetry.size > 0 ? '' : 'none'};">Échecs définitifs : ${failedAfterRetry.size}</p>
     `;
 
     const updatedUiHeight = ui.offsetHeight || 300;
@@ -703,7 +729,24 @@
 
       const date = dateText ? parseMessageDate(dateText) : null;
 
+      const contentElement = message.querySelector('.txt-msg.text-enrichi-forum');
+      let messageContent = contentElement ? contentElement.textContent.trim() : '';
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = contentElement ? contentElement.innerHTML : '';
+      tempDiv.querySelectorAll('blockquote.blockquote-jv').forEach(blockquote => blockquote.remove());
+      tempDiv.querySelectorAll('a').forEach(link => link.remove());
+      let cleanedContent = tempDiv.textContent.trim().replace(/\s+/g, '');
+      const contentLength = cleanedContent.length;
+
       let shouldDelete = true;
+
+      if (filterOptions.minMessageLength !== null && contentLength >= filterOptions.minMessageLength) {
+        shouldDelete = false;
+        ignoredByFiltersCount++;
+        processedMessages.add(messageId);
+        continue;
+      }
 
       if (filterOptions.maxDate && !isNaN(filterOptions.maxDate.getTime()) && date) {
         const filterDate = new Date(filterOptions.maxDate);
@@ -891,7 +934,6 @@
       updateUI();
 
       const doc = new DOMParser().parseFromString(text, 'text/html');
-      const messagesOnPage = doc.querySelectorAll('.bloc-message-forum').length;
       await analyzeMessages(doc);
       pageFullyProcessed = true;
       updateUI();
