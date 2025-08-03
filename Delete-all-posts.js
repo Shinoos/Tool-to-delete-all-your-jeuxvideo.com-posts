@@ -24,6 +24,7 @@
     maxDate: null,
     noDeleteOwnTopicsAndMessages: false,
   };
+  let startTime = null;
   const processedMessages = new Set();
   const failedMessages = new Set();
   const failedAfterRetry = new Set();
@@ -238,7 +239,6 @@
   const resumeButton = controls.querySelector('button.resume');
   const startButton = controls.querySelector('button.start');
 
-  let startTime = Date.now();
   let estimatedRemainingTime = null;
   let totalPages = null;
 
@@ -320,6 +320,7 @@
   });
 
   startButton.addEventListener('click', async () => {
+    startTime = Date.now();
     scriptStatus = "En cours d'exécution";
     startButton.style.display = 'none';
     pauseButton.style.display = '';
@@ -472,12 +473,13 @@
     const statusColor = scriptError ? 'red' : isPaused ? 'orange' : '#90EE90';
     const pagesTotal = totalPages || 0;
     const messageProgressPercentage = totalMessagesCount ? ((deletedTotalCount + ignoredByFiltersCount) / totalMessagesCount * 100).toFixed(2) : 0;
-    const elapsedSeconds = (Date.now() - startTime) / 1000;
+    const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0
+    const messagesProcessed = deletedTotalCount + ignoredByFiltersCount;
 
-    estimatedRemainingTime = (pageCount && totalPages) ? (totalPages - pageCount) * (elapsedSeconds / pageCount) : null;
+    estimatedRemainingTime = (messagesProcessed && totalMessagesCount && startTime) ? (totalMessagesCount - messagesProcessed) * (elapsedSeconds / messagesProcessed) : null;
 
     let progressBar = '';
-    if (totalPages) {
+    if (totalMessagesCount && startTime) {
       const progressPercent = Math.min(100, messageProgressPercentage);
       const timeBar = scriptStatus === "Terminé" ? formatTime(elapsedSeconds) : (estimatedRemainingTime !== null ? formatTime(estimatedRemainingTime) : '');
       const labelBar = scriptStatus === "Terminé" ? 'Durée totale : ' : 'Durée estimée restante : ';
@@ -961,7 +963,6 @@
   }
 
   updateUI();
-  startTime = Date.now();
 
   async function checkScriptVersion() {
     try {
