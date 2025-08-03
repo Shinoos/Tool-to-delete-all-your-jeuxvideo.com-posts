@@ -2,7 +2,7 @@
 // @name         Tool-to-delete-all-your-jeuxvideo.com-posts
 // @description  Tool to delete all your posts on the jeuxvideo.com forums.
 // @author       Shinoos
-// @version      1.0.2
+// @version      1.0.3
 // @match        https://www.jeuxvideo.com/profil/*?mode=historique_forum
 // @connect      raw.githubusercontent.com
 // @updateURL    https://raw.githubusercontent.com/Shinoos/Tool-to-delete-all-your-jeuxvideo.com-posts/refs/heads/main/userscript.user.js
@@ -58,11 +58,9 @@
             });
 
             button.addEventListener('click', function() {
-                if (confirm('Êtes-vous sûr de vouloir lancer la suppression de tous vos messages ?')) {
-                    executeDeleteScript();
-                    button.style.display = 'none';
-                }
-            });
+    			executeDeleteScript();
+    			button.style.display = 'none';
+			});
         }
     }
 
