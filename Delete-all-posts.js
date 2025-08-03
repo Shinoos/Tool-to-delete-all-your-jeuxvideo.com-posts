@@ -299,6 +299,9 @@
   document.body.appendChild(settingsModal);
 
   const maxDateInput = settingsModal.querySelector('#max-date');
+  maxDateInput.addEventListener('keydown', e => e.preventDefault());
+  maxDateInput.addEventListener('keypress', e => e.preventDefault());
+  maxDateInput.addEventListener('paste', e => e.preventDefault());
   const noDeleteOwnTopicsAndMessagesCheckbox = settingsModal.querySelector('#no-delete-own-topics-and-messages');
   const minMessageLengthInput = settingsModal.querySelector('#min-message-length');
   const saveSettingsButton = settingsModal.querySelector('#save-settings');
@@ -1022,4 +1025,3 @@
     }
   }
 })();
-
