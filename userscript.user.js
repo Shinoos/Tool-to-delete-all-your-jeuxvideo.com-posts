@@ -60,7 +60,7 @@
             button.addEventListener('click', function() {
     		executeDeleteScript();
     		button.style.display = 'none';
-		});
+	    });
         }
     }
 
@@ -82,4 +82,3 @@
     window.addEventListener('load', addDeleteButton);
 
 })();
-
