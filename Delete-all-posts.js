@@ -732,6 +732,20 @@
 
       const date = dateText ? parseMessageDate(dateText) : null;
 
+      if (filterOptions.maxDate && !isNaN(filterOptions.maxDate.getTime()) && date) {
+        const filterDate = new Date(filterOptions.maxDate);
+        filterDate.setHours(0, 0, 0, 0);
+        if (date > filterDate) {
+          ignoredByFiltersCount++;
+          processedMessages.add(messageId);
+          continue;
+        }
+      } else if (!date) {
+        ignoredByFiltersCount++;
+        processedMessages.add(messageId);
+        continue;
+      }
+
       const contentElement = message.querySelector('.txt-msg.text-enrichi-forum');
       let messageContent = contentElement ? contentElement.textContent.trim() : '';
 
@@ -745,24 +759,6 @@
       let shouldDelete = true;
 
       if (filterOptions.minMessageLength !== null && contentLength >= filterOptions.minMessageLength) {
-        shouldDelete = false;
-        ignoredByFiltersCount++;
-        processedMessages.add(messageId);
-        continue;
-      }
-
-      if (filterOptions.maxDate && !isNaN(filterOptions.maxDate.getTime()) && date) {
-        const filterDate = new Date(filterOptions.maxDate);
-        filterDate.setHours(0, 0, 0, 0);
-        if (date > filterDate) {
-          shouldDelete = false;
-          ignoredByFiltersCount++;
-          processedMessages.add(messageId);
-          continue;
-        }
-      } else if (!filterOptions.maxDate || isNaN(filterOptions.maxDate.getTime())) {
-
-      } else if (!date) {
         shouldDelete = false;
         ignoredByFiltersCount++;
         processedMessages.add(messageId);
