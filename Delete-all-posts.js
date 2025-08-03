@@ -1,5 +1,5 @@
 (async function main() {
-  const scriptVersion = "v1.2.0";
+  const scriptVersion = "v1.2.1";
   checkScriptVersion();
   let scriptStatus = "En attente de lancement";
   let scriptError = false;
@@ -1022,3 +1022,4 @@
     }
   }
 })();
+
