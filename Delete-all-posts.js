@@ -1,10 +1,11 @@
 (async function main() {
-  const scriptVersion = "v1.2.1";
+  const scriptVersion = "v1.2.2";
   checkScriptVersion();
   let scriptStatus = "En attente de lancement";
   let scriptError = false;
   let currentUrl = window.location.href;
   let currentPageHtml = null;
+  let pseudo = null;
   let pageCount = 0;
   let deletedStandardCount = 0;
   let deletedGtaCount = 0;
@@ -24,8 +25,10 @@
     maxDate: null,
     noDeleteOwnTopicsAndMessages: false,
     minMessageLength: null,
+    excludeForums: []
   };
   let startTime = null;
+  let journal = [];
   const processedMessages = new Set();
   const failedMessages = new Set();
   const failedAfterRetry = new Set();
@@ -148,7 +151,6 @@
         overflow: hidden;
         font-size: 14px;
         color: white;
-        user-select: none;
         margin-top: 12px;
       }
       #status-display .progress-fill {
@@ -173,11 +175,84 @@
         font-weight: 600;
         pointer-events: none;
       }
+      #status-display .journal-icon {
+        display: inline-block; 
+        font-size: 12px;
+        margin-left: 6px;
+        cursor: pointer;
+        margin-top: 10px;
+        text-align: center;
+      }
+      #status-display .journal-icon:hover {
+        color: #4caf50;
+      }
       .settings-icon {
         cursor: pointer;
         font-size: 18px;
         color: #aaa;
         transition: color 0.3s;
+      }
+      .modal-journal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        padding: 20px;
+        border-radius: 12px;
+        z-index: 10002;
+        color: white;
+        font-family: Arial, sans-serif;
+        width: 75vw;
+        height: 75vh;
+        min-width: 300px;
+        max-width: 900px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+      .modal-journal h4 {
+        margin: 0 0 15px;
+        font-size: 18px;
+      }
+      .modal-journal pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .modal-journal button {
+        padding: 10px;
+        margin: 10px auto 0;
+        border: none;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        cursor: pointer;
+        width: 120px;
+        position: sticky;
+        bottom: 10px;
+      }
+      .modal-journal button:hover {
+        background: rgba(0, 0, 0, 0.95);
+      }
+      .modal-journal th.sorted-asc::after,
+      .modal-journal th.sorted-desc::after {
+        content: '';
+        position: absolute;
+        right: 8px;
+        border: 6px solid transparent;
+      }
+      .modal-journal th.sorted-asc::after {
+        border-bottom-color: #333;
+        top: 50%;
+        margin-top: -3px;
+      }
+      .modal-journal th.sorted-desc::after {
+        border-top-color: #333;
+        top: 50%;
+        margin-top: -3px;
+      }
+      .modal-journal th {
+        position: relative;
       }
       .settings-icon:hover {
         color: #fff;
@@ -231,18 +306,13 @@
       .modal button:hover {
         background: rgba(0, 0, 0, 0.95);
       }
-      .modal label[title]:hover:after {
-        content: attr(title);
-        position: absolute;
+      .modal input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        border-radius: 5px;
+        border: none;
         background: #333;
         color: white;
-        padding: 5px 10px;
-        border-radius: 4px;
-        font-size: 12px;
-        z-index: 10002;
-        white-space: nowrap;
-        margin-left: 10px;
-        margin-top: -5px;
       }
     `;
     document.head.appendChild(style);
@@ -278,13 +348,17 @@
   settingsModal.className = 'modal';
   settingsModal.style.display = 'none';
   settingsModal.innerHTML = `
-    <h4>Options de suppression</h4>
+    <h4 style="text-align: center;">Options de suppression</h4>
     <label>
       Supprimer uniquement les messages antérieurs à :
       <input type="date" id="max-date">
     </label>
+    <label title="Entrez les numéros des forums à exclure (ex. : 36,51,1000021 pour Guerre des Consoles, Blabla 18-25 et Communauté)">
+      Forums à exclure (séparés par des virgules) :
+      <input type="text" id="exclude-forums" placeholder="36,51,1000021">
+    </label>
     <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-    <span title="Supprime uniquement les messages de moins de X caractères (hors espaces, liens (stickers compris), monosmiley et citations).">Supprime uniquement si moins de :</span>
+    <span title="Supprimer uniquement les messages de moins de X caractères (hors espaces, liens (stickers compris), monosmiley et citations).">Supprime uniquement si moins de :</span>
       <input type="number" id="min-message-length" min="0" placeholder="Caractères" style="width: 110px;">
     </label>
     <label>
@@ -306,7 +380,6 @@
   const minMessageLengthInput = settingsModal.querySelector('#min-message-length');
   const saveSettingsButton = settingsModal.querySelector('#save-settings');
   const cancelSettingsButton = settingsModal.querySelector('#cancel-settings');
-
   const settingsIcon = header.querySelector('.settings-icon');
   settingsIcon.className = 'settings-icon';
   settingsIcon.style.marginLeft = '8px';
@@ -314,6 +387,7 @@
     maxDateInput.value = filterOptions.maxDate ? filterOptions.maxDate.toISOString().split('T')[0] : '';
     noDeleteOwnTopicsAndMessagesCheckbox.checked = filterOptions.noDeleteOwnTopicsAndMessages;
     minMessageLengthInput.value = filterOptions.minMessageLength || '';
+    settingsModal.querySelector('#exclude-forums').value = filterOptions.excludeForums.join(', ');
     settingsModal.style.display = 'block';
     blurBackground.style.zIndex = '10000';
     pauseButton.style.display = 'none';
@@ -339,10 +413,16 @@
         maxDate = null;
       }
     }
+
     filterOptions.maxDate = maxDate;
     filterOptions.noDeleteOwnTopicsAndMessages = noDeleteOwnTopicsAndMessagesCheckbox.checked;
+
     const minLengthInput = minMessageLengthInput.value;
     filterOptions.minMessageLength = minLengthInput ? parseInt(minLengthInput, 10) : null;
+
+    const excludeForumsInput = settingsModal.querySelector('#exclude-forums').value;
+    filterOptions.excludeForums = excludeForumsInput ? excludeForumsInput.split(',').map(id => id.trim()).filter(id => /^\d+$/.test(id)) : [];
+
     settingsModal.style.display = 'none';
     blurBackground.style.zIndex = '9999';
     updateUI();
@@ -379,116 +459,8 @@
     }
   });
 
-  function extractPseudo(url) {
-    const match = url.match(/\/profil\/([^\/?]+)/i);
-    if (match) return match[1].toLowerCase();
-    return null;
-  }
-
-  async function fetchTotalMessagesCount(pseudo, maxAttempts = 5) {
-    let attempt = 0;
-
-    const startButton = document.querySelector('button.start');
-    if (startButton) startButton.style.display = 'none';
-
-    let spinner = document.getElementById('loading-spinner');
-    if (!spinner) {
-      spinner = document.createElement('div');
-      spinner.id = 'loading-spinner';
-      spinner.style.position = 'fixed';
-      spinner.style.top = '50%';
-      spinner.style.left = '50%';
-      spinner.style.transform = 'translate(-50%, -50%)';
-      spinner.style.zIndex = '10001';
-      spinner.style.display = 'none';
-      spinner.innerHTML = `
-        <div style="width: 48px; height: 48px; border: 5px solid rgba(255, 255, 255, 0.3); border-top: 5px solid #4caf50; border-radius: 50%; animation: spinModern 1s ease-in-out infinite; box-shadow: 0 0 10px rgba(0,0,0,0.4);"></div>`;
-      document.body.appendChild(spinner);
-
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes spinModern {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }`;
-      document.head.appendChild(style);
-    }
-
-    spinner.style.display = 'block';
-
-    while (attempt < maxAttempts) {
-      try {
-        const infosUrl = `https://www.jeuxvideo.com/profil/${pseudo}?mode=infos`;
-        const response = await fetch(infosUrl);
-
-        if (response.status === 429) {
-          console.warn(`Tentative ${attempt + 1} : Erreur 429 (trop de requêtes), attente de 10s avant de retenter.`);
-          attempt++;
-          await new Promise(resolve => setTimeout(resolve, 10000));
-          continue;
-        }
-
-        if (!response.ok) throw new Error(`Erreur ${response.status} sur le profil.`);
-
-        const text = await response.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, 'text/html');
-        const elements = [...doc.querySelectorAll('ul.display-line-lib li')];
-        for (const li of elements) {
-          const label = li.querySelector('.info-lib')?.textContent.trim();
-          if (label === "Messages Forums :") {
-            const value = li.querySelector('.info-value')?.textContent.trim();
-            if (value) {
-              const numStr = value.replace(/[^\d]/g, '');
-              const totalMessages = parseInt(numStr, 10);
-              if (!isNaN(totalMessages)) {
-                spinner.style.display = 'none';
-                if (startButton) startButton.style.display = '';
-                return totalMessages;
-              }
-            }
-          }
-        }
-
-        spinner.style.display = 'none';
-        if (startButton) startButton.style.display = '';
-        return null;
-      } catch (e) {
-        attempt++;
-        if (attempt < maxAttempts) {
-          console.warn(`Tentative ${attempt} échouée, attente de 10s avant de retenter.`, e);
-          await new Promise(resolve => setTimeout(resolve, 10000));
-        } else {
-          console.error('Erreur lors de la récupération du nombre total de messages après plusieurs tentatives.', e);
-          spinner.style.display = 'none';
-          if (startButton) startButton.style.display = '';
-          return null;
-        }
-      }
-    }
-
-    spinner.style.display = 'none';
-    if (startButton) startButton.style.display = '';
-    return null;
-  }
-
   function formatTime(seconds) {
     return new Date(seconds * 1000).toISOString().substr(11, 8);
-  }
-
-  function startWaitingTimer(seconds) {
-    clearInterval(waitingInterval);
-    waitingSeconds = seconds;
-    updateUI();
-    waitingInterval = setInterval(() => {
-      waitingSeconds--;
-      updateUI();
-      if (waitingSeconds <= 0) {
-        clearInterval(waitingInterval);
-        waitingInterval = null;
-        updateUI();
-      }
-    }, 1000);
   }
 
   function updateUI() {
@@ -504,7 +476,7 @@
     const messageProgressPercentage = totalMessagesCount ? ((deletedTotalCount + ignoredByFiltersCount) / totalMessagesCount * 100).toFixed(2) : 0;
     const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0;
     const messagesProcessed = deletedTotalCount + ignoredByFiltersCount;
-
+    const journalIcon = scriptStatus === "Terminé" ? `<span class="journal-icon" onclick="showJournal()" title="Afficher le journal">📰</span>` : '';
     estimatedRemainingTime = (messagesProcessed && totalMessagesCount && startTime) ? (totalMessagesCount - messagesProcessed) * (elapsedSeconds / messagesProcessed) : null;
 
     let progressBar = '';
@@ -521,7 +493,7 @@
     }
 
     dynamicContent.innerHTML = `
-      <p style="margin: 5px 0;">État du script : <span style="color: ${statusColor};">${scriptStatus} ${spinnerHtml}</span></p>
+      <p style="margin: 5px 0;">État du script : <span style="color: ${statusColor};">${scriptStatus} ${journalIcon} ${spinnerHtml}</span></p>
       <p style="margin: 5px 0;">Pages parcourues : ${pageCount} / ${pagesTotal}</p>
       <p style="margin: 5px 0;">Messages analysés : ${deletedTotalCount + ignoredByFiltersCount} / ${totalMessagesCount}</p>
       <p style="margin: 5px 0;">Messages déjà supprimés : ${deletedStandardCount} <span style="font-size:13px;color:#aaa;">(${deletedStandardPercentage}%)</span></p>
@@ -569,70 +541,54 @@
 
   async function getMessageDetails(messageId) {
     const url = `https://www.jeuxvideo.com/forums/message/${messageId}`;
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Erreur ${response.status}`);
-      const text = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, 'text/html');
-      const topicCreatorElement = doc.querySelector('p.text-muted.mx-3.mx-lg-0 strong a, p.text-muted.mx-3.mx-lg-0 strong span.JvCare');
-      let topicCreator = null;
-      if (topicCreatorElement) {
-        if (topicCreatorElement.tagName === 'A') {
-          topicCreator = topicCreatorElement.textContent.trim().toLowerCase();
-        } else if (topicCreatorElement.classList.contains('JvCare')) {
-          const rawText = topicCreatorElement.textContent.trim();
-          topicCreator = jvCareDecode(rawText);
-          if (topicCreator) {
-            topicCreator = topicCreator.toLowerCase();
-          } else {
-            console.warn(`Échec du décodage JvCareDecode pour le créateur du topic dans le message ${messageId}`);
+    const maxAttempts = 5;
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+      try {
+        const response = await fetch(url);
+
+        if (response.status === 503) {
+          attempt++;
+          console.warn(`Tentative ${attempt}/${maxAttempts} : Erreur 503 (Service indisponible), attente de 10s avant de retenter.`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          continue;
+        }
+
+        if (!response.ok) throw new Error(`Erreur ${response.status}`);
+
+        const text = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const topicCreatorElement = doc.querySelector('p.text-muted.mx-3.mx-lg-0 strong a, p.text-muted.mx-3.mx-lg-0 strong span.JvCare');
+        const topicCreator = topicCreatorElement ? topicCreatorElement.textContent.trim().toLowerCase() : null;
+
+        const forumLink = doc.querySelector('nav.breadcrumb a.breadcrumb__item[href*="/forums/"]');
+        let forumId = null;
+        if (forumLink) {
+          const href = forumLink.getAttribute('href');
+          const match = href.match(/\/forums\/(?:42|0)-(\d+)-/);
+          if (match) {
+            forumId = match[1];
           }
         }
-      } else {
-        //console.warn(`Aucun élément trouvé pour le message ${messageId}`);
-      }
-      return {
-        topicCreator
-      };
-    } catch (error) {
-      return {
-        topicCreator: null
-      };
-    }
-  }
 
-  function jvCareDecode(encodedText) {
-    const base16 = '0A12B34C56D78E9F';
-    if (encodedText.match(/[a-zA-Z0-9_\-\[\]]+/)) {
-      //console.log(`Le texte est déjà valide : ${encodedText}`);
-      return encodedText;
+        return {
+          topicCreator,
+          forumId
+        };
+
+      } catch (error) {
+        attempt++;
+        console.warn(`Tentative ${attempt}/${maxAttempts} : ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
     }
-    let decoded = '';
-    try {
-      if (encodedText.length % 2 !== 0) {
-        console.warn(`Longueur invalide du texte encodé : ${encodedText}`);
-        return null;
-      }
-      for (let i = 0; i < encodedText.length; i += 2) {
-        const high = base16.indexOf(encodedText.charAt(i));
-        const low = base16.indexOf(encodedText.charAt(i + 1));
-        if (high === -1 || low === -1) {
-          console.warn(`Caractères invalides dans l'encodage : ${encodedText.substr(i, 2)}`);
-          return null;
-        }
-        decoded += String.fromCharCode(high * 16 + low);
-      }
-      if (!decoded.match(/^[a-zA-Z0-9_\-\[\]]+$/)) {
-        console.warn(`Le texte décodé n'est pas valide : ${decoded}`);
-        return null;
-      }
-      //console.log(`Texte décodé : ${decoded}`);
-      return decoded;
-    } catch (e) {
-      console.error(`Erreur de décodage : ${e.message}, ent : ${encodedText}`);
-      return null;
-    }
+
+    return {
+      topicCreator: null,
+      forumId: null
+    };
   }
 
   function parseMessageDate(dateStr) {
@@ -664,7 +620,7 @@
     }
     const date = new Date(year, monthIndex, day);
     if (isNaN(date.getTime())) {
-      console.error(`Date invalide créée: ${year}-${monthIndex + 1}-${day}.`);
+      console.error(`Date invalide créée : ${year}-${monthIndex + 1}-${day}.`);
       return null;
     }
     date.setHours(0, 0, 0, 0);
@@ -683,20 +639,152 @@
     return null;
   }
 
-  function jvCake(classe) {
+  function jvCake(encodedText) {
     const base16 = '0A12B34C56D78E9F';
-    let link = '';
-    const s = classe.split(' ')[1];
+    let decodedText = '';
+    const s = encodedText.split(' ')[1];
     for (let i = 0; i < s.length; i += 2) {
-      link += String.fromCharCode(base16.indexOf(s.charAt(i)) * 16 + base16.indexOf(s.charAt(i + 1)));
+      decodedText += String.fromCharCode(base16.indexOf(s.charAt(i)) * 16 + base16.indexOf(s.charAt(i + 1)));
     }
-    return link;
+    return decodedText;
   }
+
+  function logEvent(messageId, action, reason = null) {
+    const nowMs = Date.now();
+    const date = new Date(nowMs);
+    const options = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    };
+
+    const label = date.toLocaleString('fr-FR', options);
+    const millis = (nowMs % 1000).toString().padStart(3, '0');
+    const timestamp = `${label}:${millis}`;
+
+    journal.push({
+      timestamp,
+      messageId,
+      action,
+      reason
+    });
+
+    console.log("Événement ajouté au journal :", {
+      timestamp,
+      messageId,
+      action,
+      reason
+    });
+  }
+
+  function enableSorting(table) {
+    const tbody = table.querySelector('tbody');
+    table.querySelectorAll('th').forEach((th, colIndex) => {
+      th.addEventListener('click', () => {
+        const isAsc = th.classList.toggle('sorted-asc');
+        th.classList.toggle('sorted-desc', !isAsc);
+        table.querySelectorAll('th').forEach(other => {
+          if (other !== th) other.classList.remove('sorted-asc', 'sorted-desc');
+        });
+
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const type = th.dataset.type;
+        rows.sort((a, b) => {
+          let aT = a.children[colIndex].textContent.trim();
+          let bT = b.children[colIndex].textContent.trim();
+          if (type === 'number') return isAsc ? aT - bT : bT - aT;
+          if (type === 'date') return isAsc ? new Date(aT) - new Date(bT) :
+            new Date(bT) - new Date(aT);
+          return isAsc ?
+            aT.localeCompare(bT) :
+            bT.localeCompare(aT);
+        });
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+  }
+
+  function showJournal() {
+    const formatTimestamp = iso => new Date(iso)
+      .toLocaleString('fr-FR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-journal';
+    modal.style.display = 'block';
+
+    const title = document.createElement('h4');
+    title.textContent = 'Journal des événements';
+    title.style.textAlign = 'center';
+    modal.appendChild(title);
+
+    const table = document.createElement('table');
+    table.style.cssText = 'border-collapse:collapse;width:100%;margin-bottom:15px;';
+    table.innerHTML = `
+    <thead>
+      <tr>
+        <th data-type="date"   style="border:1px solid #999;padding:5px;cursor:pointer;">Horodatage</th>
+        <th data-type="number" style="border:1px solid #999;padding:5px;cursor:pointer;">Message ID</th>
+        <th data-type="string" style="border:1px solid #999;padding:5px;cursor:pointer;">Action</th>
+        <th data-type="string" style="border:1px solid #999;padding:5px;cursor:pointer;">Raison</th>
+      </tr>
+    </thead>
+  `;
+    const tbody = document.createElement('tbody');
+
+    journal.forEach(entry => {
+      const tr = document.createElement('tr');
+      const cols = [
+        entry.timestamp,
+        entry.messageId,
+        entry.action,
+        entry.reason || 'N/A'
+      ];
+      cols.forEach((val, i) => {
+        const td = document.createElement('td');
+        td.style.cssText = 'border:1px solid #999;padding:5px;';
+        if (i === 1) {
+          const a = document.createElement('a');
+          a.href = `https://www.jeuxvideo.com/forums/message/${val}`;
+          a.target = '_blank';
+          a.textContent = val;
+          a.style.color = '#90EE90';
+          a.style.textDecoration = 'none';
+          td.appendChild(a);
+        } else td.textContent = val;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    modal.appendChild(table);
+
+    enableSorting(table);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Fermer';
+    closeBtn.style.cssText = 'display:block;margin:10px auto;padding:5px 15px;';
+    closeBtn.onclick = () => modal.remove();
+    modal.appendChild(closeBtn);
+
+    document.body.appendChild(modal);
+  }
+
+  window.showJournal = showJournal;
 
   async function analyzeMessages(doc) {
     const messages = doc.querySelectorAll('.bloc-message-forum');
     let promises = [];
-    const pseudo = extractPseudo(currentUrl).toLowerCase();
 
     isProcessingMessages = true;
     updateUI();
@@ -709,27 +797,18 @@
         deletedStandardCount++;
         deletedTotalCount++;
         processedMessages.add(messageId);
+        logEvent(messageId, "Ignoré.", "Message déjà supprimé.");
         continue;
       } else if (message.classList.contains('msg-supprime-gta')) {
         deletedGtaCount++;
         deletedTotalCount++;
         processedMessages.add(messageId);
+        logEvent(messageId, "Ignoré.", "Message déjà supprimé GTA.");
         continue;
       }
 
       const dateElement = message.querySelector('.bloc-date-msg a, .bloc-date-msg span');
       let dateText = dateElement ? dateElement.textContent.trim() : null;
-
-      let isValidDateFormat = dateText && dateText.match(/(\d{2})\s+([a-zéû]+)\s+(\d{4})\s+à\s+\d{2}:\d{2}:\d{2}/i);
-      if (dateElement && dateElement.classList.contains('JvCare') && !isValidDateFormat) {
-        try {
-          dateText = jvCareDecode(dateText);
-        } catch (e) {
-          console.error(`Erreur lors du décodage JvCareDecode pour message ${messageId} : ${e.message}.`);
-          dateText = null;
-        }
-      }
-
       const date = dateText ? parseMessageDate(dateText) : null;
 
       if (filterOptions.maxDate && !isNaN(filterOptions.maxDate.getTime()) && date) {
@@ -738,55 +817,65 @@
         if (date > filterDate) {
           ignoredByFiltersCount++;
           processedMessages.add(messageId);
+          logEvent(messageId, "Ignoré.", "Date supérieure à la date mentionnée.");
           continue;
         }
       } else if (!date) {
         ignoredByFiltersCount++;
         processedMessages.add(messageId);
+        logEvent(messageId, "Ignoré.", "Aucune date trouvée.");
         continue;
       }
 
-      const contentElement = message.querySelector('.txt-msg.text-enrichi-forum');
-      let messageContent = contentElement ? contentElement.textContent.trim() : '';
+      let msgLength = null;
+      if (filterOptions.minMessageLength !== null) {
+        const contentElement = message.querySelector('.txt-msg.text-enrichi-forum');
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = contentElement ? contentElement.innerHTML : '';
+        tempDiv.querySelectorAll('blockquote.blockquote-jv').forEach(blockquote => blockquote.remove());
+        tempDiv.querySelectorAll('a').forEach(link => link.remove());
+        msgLength = tempDiv.textContent.trim().replace(/\s+/g, '').length;
 
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = contentElement ? contentElement.innerHTML : '';
-      tempDiv.querySelectorAll('blockquote.blockquote-jv').forEach(blockquote => blockquote.remove());
-      tempDiv.querySelectorAll('a').forEach(link => link.remove());
-      let cleanedContent = tempDiv.textContent.trim().replace(/\s+/g, '');
-      const contentLength = cleanedContent.length;
-
-      let shouldDelete = true;
-
-      if (filterOptions.minMessageLength !== null && contentLength >= filterOptions.minMessageLength) {
-        shouldDelete = false;
-        ignoredByFiltersCount++;
-        processedMessages.add(messageId);
-        continue;
-      }
-
-      if (shouldDelete && filterOptions.noDeleteOwnTopicsAndMessages) {
-        const {
-          topicCreator
-        } = await getMessageDetails(messageId);
-        if (topicCreator && topicCreator.toLowerCase() === pseudo) {
-          shouldDelete = false;
+        if (msgLength >= filterOptions.minMessageLength) {
           ignoredByFiltersCount++;
           processedMessages.add(messageId);
+          logEvent(messageId, "Ignoré.", "Message trop long pour être supprimé.");
           continue;
         }
       }
 
-      if (shouldDelete) {
-        promises.push(
-          deleteMessage(hash, messageId, 20).then(() => {
-            processedMessages.add(messageId);
-          }).catch((error) => {
-            console.error(`Échec de la suppression du message ${messageId}: ${error.message}`);
-            processedMessages.add(messageId);
-          })
-        );
+      if (filterOptions.noDeleteOwnTopicsAndMessages || filterOptions.excludeForums.length > 0) {
+        const {
+          topicCreator,
+          forumId
+        } = await getMessageDetails(messageId);
+
+        if (filterOptions.noDeleteOwnTopicsAndMessages && topicCreator && topicCreator.toLowerCase() === pseudo) {
+          ignoredByFiltersCount++;
+          processedMessages.add(messageId);
+          logEvent(messageId, "Ignoré.", "Message posté sur un topic m'appartenant.");
+          updateUI();
+          continue;
+        }
+
+        if (forumId && filterOptions.excludeForums.includes(forumId)) {
+          ignoredByFiltersCount++;
+          processedMessages.add(messageId);
+          logEvent(messageId, "Ignoré.", "Message posté sur un forum listé comme exclu.");
+          updateUI();
+          continue;
+        }
       }
+
+      promises.push(
+        deleteMessage(hash, messageId, 20).then(() => {
+          logEvent(messageId, "Supprimé.");
+          processedMessages.add(messageId);
+        }).catch((error) => {
+          console.error(`Échec de la suppression du message ${messageId}: ${error.message}`);
+          processedMessages.add(messageId);
+        })
+      );
     }
 
     await Promise.all(promises);
@@ -797,13 +886,14 @@
 
   async function deleteMessage(hash, messageId, maxAttempts) {
     let attempt = 0;
-    let success = false;
+    let error503dCount = 0;
     let error403 = false;
-    let error503dMCount = 0;
+    let success = false;
 
     while (attempt < maxAttempts && !success) {
       try {
         isPendingRequest = true;
+
         const response = await fetch(
           `https://www.jeuxvideo.com/forums/modal_del_message.php?type=delete&ajax_hash=${hash}&tab_message[]=${messageId}`, {
             method: 'POST',
@@ -815,40 +905,42 @@
           }
         );
 
-        if (response.status === 403) {
-          error403 = true;
-          throw new Error('Erreur (403).');
-        }
-
-        if (response.status === 503) {
-          error503dMCount++;
-          if (error503dMCount >= 5) {
-            scriptError = true;
-            scriptStatus = "Erreur (503) persistante";
+        switch (response.status) {
+          case 403:
+            error403 = true;
+            isPaused = true;
+            scriptStatus = "Erreur 403 : Veuillez résoudre le CAPTCHA Cloudflare puis cliquer sur Reprendre";
+            failedMessages.add(messageId);
             updateUI();
-            throw new Error('Erreur (503) persistante.');
-          }
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          continue;
+            return false;
+
+          case 503:
+            error503dCount++;
+            if (error503dCount >= 5) {
+              scriptError = true;
+              scriptStatus = "Erreur 503 persistante";
+              updateUI();
+              throw new Error('Erreur (503) persistante.');
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+
+          default:
+            if (response.ok) {
+              deletedByScriptCount++;
+              deletedTotalCount++;
+              success = true;
+            } else {
+              throw new Error(`Échec avec le code ${response.status}.`);
+            }
+            break;
         }
 
-        if (response.ok) {
-          deletedByScriptCount++;
-          deletedTotalCount++;
-          success = true;
-        } else {
-          throw new Error(`Échec avec le code ${response.status}.`);
-        }
       } catch (error) {
-        if (error.message.includes('403')) {
-          isPaused = true;
-          scriptStatus = "Erreur 403 : Veuillez résoudre le CAPTCHA Cloudflare puis cliquer sur Reprendre";
-          updateUI();
-          throw error;
-        }
         const delay = Math.min(2 ** attempt * 100, 5000);
         attempt++;
         await new Promise(resolve => setTimeout(resolve, delay));
+
       } finally {
         isPendingRequest = false;
       }
@@ -857,16 +949,16 @@
     if (success) {
       failedMessages.delete(messageId);
       failedAfterRetry.delete(messageId);
-      updateUI();
-    } else if (maxAttempts === 20 && !error403) {
-      failedMessages.add(messageId);
-      updateUI();
     } else if (!error403) {
-      failedAfterRetry.add(messageId);
-      failedMessages.delete(messageId);
-      updateUI();
+      if (maxAttempts === 20) {
+        failedMessages.add(messageId);
+      } else {
+        failedAfterRetry.add(messageId);
+        failedMessages.delete(messageId);
+      }
     }
 
+    updateUI();
     return success;
   }
 
@@ -875,9 +967,25 @@
       const success = await deleteMessage(hash, messageId, 5);
       if (success) {
         failedMessages.delete(messageId);
+        logEvent(messageId, "Supprimé.", "Supprimé après retry.");
         updateUI();
       }
     }
+  }
+
+  function startWaitingTimer(seconds) {
+    clearInterval(waitingInterval);
+    waitingSeconds = seconds;
+    updateUI();
+    waitingInterval = setInterval(() => {
+      waitingSeconds--;
+      updateUI();
+      if (waitingSeconds <= 0) {
+        clearInterval(waitingInterval);
+        waitingInterval = null;
+        updateUI();
+      }
+    }, 1000);
   }
 
   async function navigateToNextPage(url, attempt = 1) {
@@ -895,35 +1003,42 @@
 
       const response = await fetch(url);
 
-      if (response.status === 403) {
-        isPaused = true;
-        scriptStatus = "Erreur 403 : Veuillez résoudre le CAPTCHA Cloudflare puis cliquer sur Reprendre";
-        updateUI();
-        return;
-      }
+      switch (response.status) {
+        case 200:
+          break;
 
-      if (response.status === 503) {
-        error503Count++;
-        if (error503Count >= 5) {
-          scriptError = true;
-          scriptStatus = "Erreur (503) persistante";
+        case 403:
+          isPaused = true;
+          scriptStatus = "Erreur 403 : Veuillez résoudre le CAPTCHA Cloudflare puis cliquer sur Reprendre";
           updateUI();
-          throw new Error('Erreur (503) persistante.');
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return navigateToNextPage(url, attempt);
-      }
+          return;
 
-      if (response.status === 429) {
-        startWaitingTimer(10);
-        if (attempt < 5) {
-          await new Promise(resolve => setTimeout(resolve, 10000));
-          lastPageAnalyzed = false;
-          currentPageHtml = null;
-          return navigateToNextPage(url, attempt + 1);
-        } else {
-          throw new Error('Échec après plusieurs tentatives (429).');
-        }
+        case 503:
+          error503Count++;
+          if (error503Count >= 5) {
+            scriptStatus = "Erreur (503) persistante";
+            updateUI();
+            throw new Error('Erreur (503) persistante.');
+          }
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return navigateToNextPage(url, attempt);
+
+        case 429:
+          startWaitingTimer(10);
+          if (attempt < 5) {
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            lastPageAnalyzed = false;
+            currentPageHtml = null;
+            return navigateToNextPage(url, attempt + 1);
+          } else {
+            scriptStatus = "Erreur (429) persistante";
+            throw new Error('Échec après plusieurs tentatives (429).');
+          }
+
+        default:
+          scriptStatus = `Erreur HTTP ${response.status}`;
+          updateUI();
+          throw new Error(`Erreur HTTP ${response.status}`);
       }
 
       error503Count = 0;
@@ -937,7 +1052,7 @@
       pageFullyProcessed = true;
       updateUI();
 
-      let nextUrl = getNextPageUrl(doc);
+      const nextUrl = getNextPageUrl(doc);
       if (nextUrl) {
         return navigateToNextPage(nextUrl);
       } else {
@@ -951,9 +1066,8 @@
       }
     } catch (error) {
       scriptError = true;
-      scriptStatus = "Erreur";
-      updateUI();
       console.error(error);
+      updateUI();
     } finally {
       isPendingRequest = false;
       updateUI();
@@ -963,31 +1077,128 @@
   async function resumeScript() {
     if (isPaused) return;
 
-    if (lastPageAnalyzed && currentPageHtml) {
-      const doc = new DOMParser().parseFromString(currentPageHtml, 'text/html');
-      let nextUrl = getNextPageUrl(doc);
-      if (nextUrl) {
-        navigateToNextPage(nextUrl);
-      } else {
-        if (failedMessages.size > 0) {
-          await retryFailedMessages();
-        }
-        scriptStatus = "Terminé";
-        updateUI();
-      }
-    } else if (currentPageHtml && !lastPageAnalyzed) {
+    if (!currentPageHtml) {
+      navigateToNextPage(currentUrl);
+      return;
+    }
+
+    if (!lastPageAnalyzed) {
       const doc = new DOMParser().parseFromString(currentPageHtml, 'text/html');
       await analyzeMessages(doc);
       lastPageAnalyzed = true;
-      if (!isPaused) resumeScript();
+      if (!isPaused) await resumeScript();
+      return;
+    }
+
+    const doc = new DOMParser().parseFromString(currentPageHtml, 'text/html');
+    const nextUrl = getNextPageUrl(doc);
+
+    if (nextUrl) {
+      navigateToNextPage(nextUrl);
     } else {
-      navigateToNextPage(currentUrl);
+      if (failedMessages.size > 0) {
+        await retryFailedMessages();
+      }
+      scriptStatus = "Terminé";
+      updateUI();
     }
   }
 
   window.resumeScript = resumeScript;
 
-  const pseudo = extractPseudo(currentUrl);
+  async function fetchTotalMessagesCount(pseudo, maxAttempts = 5) {
+    let attempt = 0;
+
+    const startButton = document.querySelector('button.start');
+    if (startButton) startButton.style.display = 'none';
+
+    let spinner = document.getElementById('loading-spinner');
+    if (!spinner) {
+      spinner = document.createElement('div');
+      spinner.id = 'loading-spinner';
+      spinner.style.position = 'fixed';
+      spinner.style.top = '50%';
+      spinner.style.left = '50%';
+      spinner.style.transform = 'translate(-50%, -50%)';
+      spinner.style.zIndex = '10001';
+      spinner.style.display = 'none';
+      spinner.innerHTML = `<div style="width: 48px; height: 48px; border: 5px solid rgba(255, 255, 255, 0.3); border-top: 5px solid #4caf50; border-radius: 50%; animation: spinModern 1s ease-in-out infinite; box-shadow: 0 0 10px rgba(0,0,0,0.4);"></div>`;
+      document.body.appendChild(spinner);
+
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes spinModern {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }`;
+      document.head.appendChild(style);
+    }
+
+    spinner.style.display = 'block';
+
+    while (attempt < maxAttempts) {
+      try {
+        const infosUrl = `https://www.jeuxvideo.com/profil/${pseudo}?mode=infos`;
+        const response = await fetch(infosUrl);
+
+        if (response.status === 429 || response.status === 503) {
+          console.warn(`Tentative ${attempt + 1}/${maxAttempts} : Erreur ${response.status}, attente de 10s avant de retenter.`);
+          attempt++;
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          continue;
+        }
+
+        if (!response.ok) throw new Error(`Erreur ${response.status} sur le profil.`);
+
+        const text = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const elements = [...doc.querySelectorAll('ul.display-line-lib li')];
+        for (const li of elements) {
+          const label = li.querySelector('.info-lib')?.textContent.trim();
+          if (label === "Messages Forums :") {
+            const value = li.querySelector('.info-value')?.textContent.trim();
+            if (value) {
+              const numStr = value.replace(/[^\d]/g, '');
+              const totalMessages = parseInt(numStr, 10);
+              if (!isNaN(totalMessages)) {
+                spinner.style.display = 'none';
+                if (startButton) startButton.style.display = '';
+                return totalMessages;
+              }
+            }
+          }
+        }
+
+        spinner.style.display = 'none';
+        if (startButton) startButton.style.display = '';
+        return null;
+      } catch (e) {
+        attempt++;
+        if (attempt < maxAttempts) {
+          console.warn(`Tentative ${attempt}/${maxAttempts} échouée, attente de 10s avant de retenter.`, e);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        } else {
+          console.error('Erreur lors de la récupération du nombre total de messages après plusieurs tentatives.', e);
+          spinner.style.display = 'none';
+          if (startButton) startButton.style.display = '';
+          return null;
+        }
+      }
+    }
+
+    spinner.style.display = 'none';
+    if (startButton) startButton.style.display = '';
+    return null;
+  }
+
+  function extractPseudo(url) {
+    const match = url.match(/\/profil\/([^\/?]+)/i);
+    if (match) return match[1].toLowerCase();
+    return null;
+  }
+
+  pseudo = extractPseudo(currentUrl);
   if (!pseudo) {
     console.error("Impossible d'extraire le pseudo depuis l'URL.");
     scriptError = true;
