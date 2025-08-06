@@ -1,5 +1,5 @@
 (async function main() {
-  const scriptVersion = "v1.2.2";
+  const scriptVersion = "v1.2.3";
   checkScriptVersion();
   let scriptStatus = "En attente de lancement";
   let scriptError = false;
@@ -22,10 +22,12 @@
   let pageFullyProcessed = false;
   let isProcessingMessages = false;
   let filterOptions = {
+    minDate: null,
     maxDate: null,
     noDeleteOwnTopicsAndMessages: false,
     minMessageLength: null,
-    excludeForums: []
+    excludeForums: [],
+    dryRun: false
   };
   let startTime = null;
   let journal = [];
@@ -176,12 +178,12 @@
         pointer-events: none;
       }
       #status-display .journal-icon {
-        display: inline-block; 
-        font-size: 12px;
-        margin-left: 6px;
+        display: inline-block;
+        font-size: 16px;
+        margin-right: 8px;
         cursor: pointer;
-        margin-top: 10px;
         text-align: center;
+        vertical-align: middle;
       }
       #status-display .journal-icon:hover {
         color: #4caf50;
@@ -314,6 +316,48 @@
         background: #333;
         color: white;
       }
+      .modal-confirmation {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        padding: 20px;
+        border-radius: 12px;
+        z-index: 10001;
+        color: white;
+        font-family: Arial, sans-serif;
+        min-width: 300px;
+        max-width: 400px;
+      }
+      .modal-confirmation h4 {
+        margin: 0 0 15px;
+        font-size: 18px;
+        text-align: center;
+      }
+      .modal-confirmation ul {
+        margin: 0 0 15px;
+        padding-left: 20px;
+      }
+      .modal-confirmation li {
+        margin: 5px 0;
+      }
+      .modal-confirmation .buttons {
+        text-align: right;
+        margin-top: 10px;
+      }
+      .modal-confirmation button {
+        padding: 10px;
+        margin: 5px;
+        border: none;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        cursor: pointer;
+      }
+      .modal-confirmation button:hover {
+        background: rgba(0, 0, 0, 0.95);
+      }
     `;
     document.head.appendChild(style);
   }
@@ -334,9 +378,14 @@
   header.style.margin = '0';
   header.style.fontSize = '16px';
   header.innerHTML = `
-    <span style="font-size: 13px; color: #aaa; margin-right: 8px;">${scriptVersion}</span>
-    <span>Delete-all-posts.js</span>
-    <span class="settings-icon">⚙️</span>
+    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+      <span style="font-size: 13px; color: #aaa;">${scriptVersion}</span>
+      <span style="flex: 1; text-align: center;">Delete-all-posts.js</span>
+      <div style="display: flex; align-items: center;">
+        <span class="journal-icon" onclick="showJournal()" title="Afficher le journal">📰</span>
+        <span class="settings-icon">⚙️</span>
+      </div>
+    </div>
   `;
 
   statusDisplay.appendChild(header);
@@ -350,28 +399,101 @@
   settingsModal.innerHTML = `
     <h4 style="text-align: center;">Options de suppression</h4>
     <label>
-      Supprimer uniquement les messages antérieurs à :
+      Supprime uniquement les messages postérieurs à :
+      <input type="date" id="min-date">
+    </label>
+    <label>
+      Supprime uniquement les messages antérieurs à :
       <input type="date" id="max-date">
     </label>
-    <label title="Entrez les numéros des forums à exclure (ex. : 36,51,1000021 pour Guerre des Consoles, Blabla 18-25 et Communauté)">
+    <label title="Entre les numéros des forums à exclure (ex : 36,51,1000021 pour Guerre des Consoles, Blabla 18-25 et Communauté).">
       Forums à exclure (séparés par des virgules) :
       <input type="text" id="exclude-forums" placeholder="36,51,1000021">
     </label>
-    <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-    <span title="Supprimer uniquement les messages de moins de X caractères (hors espaces, liens (stickers compris), monosmiley et citations).">Supprime uniquement si moins de :</span>
-      <input type="number" id="min-message-length" min="0" placeholder="Caractères" style="width: 110px;">
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px;">
+      <span title="Supprime uniquement les messages de moins de X caractères (hors espaces, liens (stickers compris), monosmiley et citations).">Supprime uniquement si moins de :</span>
+      <input type="number" id="min-message-length" min="0" placeholder="Caractères" style="width: 110px;" title="Supprime uniquement les messages de moins de X caractères (hors espaces, liens (stickers compris), monosmiley et citations).">
     </label>
-    <label>
+    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
       <input type="checkbox" id="no-delete-own-topics-and-messages">
-      Ne pas supprimer mes topics ni leurs messages
-    </label>
-    <div style="text-align: right;">
+      <label for="no-delete-own-topics-and-messages" title="Vos topics et les messages présents dans vos topics ne seront pas supprimés." style="cursor: pointer;">
+        Ne pas supprimer mes topics ni leurs messages
+      </label>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+      <input type="checkbox" id="dry-run-mode">
+      <label for="dry-run-mode" title="Active le mode simulation pour tester la suppression des messages sans effectuer de requêtes réelles. Le script simulera les suppressions, mettra à jour les compteurs et enregistrera les actions dans le journal pour vérifier les messages qui seraient supprimés selon les filtres configurés." style="cursor: pointer;">
+        Mode simulation
+      </label>
+    </div>
+    <div style="text-align: right; margin-top: 10px;">
       <button id="save-settings">Enregistrer</button>
       <button id="cancel-settings">Annuler</button>
     </div>
   `;
   document.body.appendChild(settingsModal);
 
+  const confirmationModal = document.createElement('div');
+  confirmationModal.className = 'modal-confirmation';
+  confirmationModal.style.display = 'none';
+  confirmationModal.innerHTML = `
+      <h4>Confirmer la suppression</h4>
+      <p>Filtres actifs :</p>
+      <ul id="active-filters"></ul>
+      <div class="buttons">
+        <button id="confirm-delete">Confirmer</button>
+        <button id="cancel-delete">Annuler</button>
+      </div>
+    `;
+  document.body.appendChild(confirmationModal);
+
+  function displayActiveFilters() {
+    const formattedMinDate = filterOptions.minDate ? filterOptions.minDate.toLocaleDateString('fr-FR') : null;
+    const formattedMaxDate = filterOptions.maxDate ? filterOptions.maxDate.toLocaleDateString('fr-FR') : null;
+    const activeFiltersList = confirmationModal.querySelector('#active-filters');
+    activeFiltersList.innerHTML = '';
+
+    const filters = [];
+
+    if (filterOptions.minDate && filterOptions.maxDate) {
+      filters.push(`Seuls les messages entre le ${formattedMinDate} et le ${formattedMaxDate} seront supprimés.`);
+    } else {
+      if (filterOptions.maxDate) {
+        filters.push(`Supprimer uniquement les messages antérieurs au ${formattedMaxDate}.`);
+      }
+      if (filterOptions.minDate) {
+        filters.push(`Supprimer uniquement les messages postérieurs au ${formattedMinDate}.`);
+      }
+    }
+
+    if (filterOptions.noDeleteOwnTopicsAndMessages) {
+      filters.push("Ne pas supprimer mes topics ni leurs messages.");
+    }
+    if (filterOptions.minMessageLength !== null) {
+      filters.push(`Supprimer uniquement les messages de moins de ${filterOptions.minMessageLength} caractères.`);
+    }
+    if (filterOptions.excludeForums.length > 0) {
+      filters.push(`Forums exclus : ${filterOptions.excludeForums.join(', ')}.`);
+    }
+    if (filterOptions.dryRun) {
+      filters.push("Mode simulation.");
+    }
+
+    if (filters.length === 0) {
+      filters.push("Aucun filtre actif (tous les messages seront supprimés).");
+    }
+
+    filters.forEach(filter => {
+      const li = document.createElement('li');
+      li.textContent = filter;
+      activeFiltersList.appendChild(li);
+    });
+  }
+
+  const minDateInput = settingsModal.querySelector('#min-date');
+  minDateInput.addEventListener('keydown', e => e.preventDefault());
+  minDateInput.addEventListener('keypress', e => e.preventDefault());
+  minDateInput.addEventListener('paste', e => e.preventDefault());
   const maxDateInput = settingsModal.querySelector('#max-date');
   maxDateInput.addEventListener('keydown', e => e.preventDefault());
   maxDateInput.addEventListener('keypress', e => e.preventDefault());
@@ -384,15 +506,17 @@
   settingsIcon.className = 'settings-icon';
   settingsIcon.style.marginLeft = '8px';
   settingsIcon.addEventListener('click', () => {
+    minDateInput.value = filterOptions.minDate ? filterOptions.minDate.toISOString().split('T')[0] : '';
     maxDateInput.value = filterOptions.maxDate ? filterOptions.maxDate.toISOString().split('T')[0] : '';
     noDeleteOwnTopicsAndMessagesCheckbox.checked = filterOptions.noDeleteOwnTopicsAndMessages;
     minMessageLengthInput.value = filterOptions.minMessageLength || '';
+    settingsModal.querySelector('#dry-run-mode').checked = filterOptions.dryRun;
     settingsModal.querySelector('#exclude-forums').value = filterOptions.excludeForums.join(', ');
     settingsModal.style.display = 'block';
     blurBackground.style.zIndex = '10000';
     pauseButton.style.display = 'none';
     resumeButton.style.display = 'none';
-    startButton.style.display = scriptStatus === "En attente de lancement" ? '' : 'none';
+    startButton.style.display = 'none';
   });
 
   header.appendChild(settingsIcon);
@@ -414,8 +538,25 @@
       }
     }
 
+    const minDateInputValue = minDateInput.value;
+    let minDate = null;
+    if (minDateInputValue) {
+      const [year, month, day] = minDateInputValue.split('-').map(Number);
+      minDate = new Date(Date.UTC(year, month - 1, day));
+      if (isNaN(minDate.getTime())) {
+        minDate = null;
+      }
+    }
+
+    if (minDate && maxDate && minDate > maxDate) {
+      alert("Erreur : La date minimale ne peut pas être postérieure à la date maximale.");
+      return;
+    }
+
     filterOptions.maxDate = maxDate;
+    filterOptions.minDate = minDate;
     filterOptions.noDeleteOwnTopicsAndMessages = noDeleteOwnTopicsAndMessagesCheckbox.checked;
+    filterOptions.dryRun = settingsModal.querySelector('#dry-run-mode').checked;
 
     const minLengthInput = minMessageLengthInput.value;
     filterOptions.minMessageLength = minLengthInput ? parseInt(minLengthInput, 10) : null;
@@ -429,6 +570,20 @@
   });
 
   startButton.addEventListener('click', async () => {
+    displayActiveFilters();
+    confirmationModal.style.display = 'block';
+    blurBackground.style.zIndex = '10000';
+    pauseButton.style.display = 'none';
+    resumeButton.style.display = 'none';
+    startButton.style.display = 'none';
+  });
+
+  const confirmDeleteButton = confirmationModal.querySelector('#confirm-delete');
+  const cancelDeleteButton = confirmationModal.querySelector('#cancel-delete');
+
+  confirmDeleteButton.addEventListener('click', async () => {
+    confirmationModal.style.display = 'none';
+    blurBackground.style.zIndex = '9999';
     startTime = Date.now();
     scriptStatus = "En cours d'exécution";
     startButton.style.display = 'none';
@@ -440,6 +595,12 @@
     resumeButton.disabled = true;
     updateUI();
     await navigateToNextPage(currentUrl);
+  });
+
+  cancelDeleteButton.addEventListener('click', () => {
+    confirmationModal.style.display = 'none';
+    blurBackground.style.zIndex = '9999';
+    updateUI();
   });
 
   pauseButton.addEventListener('click', () => {
@@ -476,7 +637,6 @@
     const messageProgressPercentage = totalMessagesCount ? ((deletedTotalCount + ignoredByFiltersCount) / totalMessagesCount * 100).toFixed(2) : 0;
     const elapsedSeconds = startTime ? (Date.now() - startTime) / 1000 : 0;
     const messagesProcessed = deletedTotalCount + ignoredByFiltersCount;
-    const journalIcon = scriptStatus === "Terminé" ? `<span class="journal-icon" onclick="showJournal()" title="Afficher le journal">📰</span>` : '';
     estimatedRemainingTime = (messagesProcessed && totalMessagesCount && startTime) ? (totalMessagesCount - messagesProcessed) * (elapsedSeconds / messagesProcessed) : null;
 
     let progressBar = '';
@@ -493,7 +653,8 @@
     }
 
     dynamicContent.innerHTML = `
-      <p style="margin: 5px 0;">État du script : <span style="color: ${statusColor};">${scriptStatus} ${journalIcon} ${spinnerHtml}</span></p>
+      <p style="margin: 5px 0;">État du script : <span style="color: ${statusColor};">${scriptStatus} ${spinnerHtml}</span></p>
+      <p style="margin: 5px 0; display: ${filterOptions.dryRun ? 'block' : 'none'};">Mode simulation : <span style="color: #FFD700;">Activé</span></p>
       <p style="margin: 5px 0;">Pages parcourues : ${pageCount} / ${pagesTotal}</p>
       <p style="margin: 5px 0;">Messages analysés : ${deletedTotalCount + ignoredByFiltersCount} / ${totalMessagesCount}</p>
       <p style="margin: 5px 0;">Messages déjà supprimés : ${deletedStandardCount} <span style="font-size:13px;color:#aaa;">(${deletedStandardPercentage}%)</span></p>
@@ -509,21 +670,26 @@
     const updatedUiHeight = ui.offsetHeight || 300;
     controls.style.top = `calc(50% + ${updatedUiHeight / 2 + 8}px)`;
 
-    if (scriptStatus === "Terminé") {
-      pauseButton.style.display = 'none';
-      resumeButton.style.display = 'none';
-      startButton.style.display = 'none';
-      return;
-    }
+    switch (scriptStatus) {
+      case "Terminé":
+        pauseButton.style.display = 'none';
+        resumeButton.style.display = 'none';
+        startButton.style.display = 'none';
+        break;
 
-    if (scriptStatus === "En attente de lancement") {
-      pauseButton.style.display = 'none';
-      resumeButton.style.display = 'none';
-      startButton.style.display = '';
-    } else if (settingsModal.style.display !== 'block') {
-      pauseButton.style.display = '';
-      resumeButton.style.display = '';
-      startButton.style.display = 'none';
+      case "En attente de lancement":
+        pauseButton.style.display = 'none';
+        resumeButton.style.display = 'none';
+        startButton.style.display = settingsModal.style.display === 'block' || confirmationModal.style.display === 'block' ? 'none' : '';
+        break;
+
+      default:
+        if (settingsModal.style.display !== 'block') {
+          pauseButton.style.display = '';
+          resumeButton.style.display = '';
+          startButton.style.display = 'none';
+        }
+        break;
     }
 
     if (isPaused) {
@@ -773,7 +939,7 @@
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = 'Fermer';
-    closeBtn.style.cssText = 'display:block;margin:10px auto;padding:5px 15px;';
+    closeBtn.style.cssText = 'display:block;margin:10px auto;padding:10px 20px;font-size:16px;border-radius:6px;';
     closeBtn.onclick = () => modal.remove();
     modal.appendChild(closeBtn);
 
@@ -811,20 +977,33 @@
       let dateText = dateElement ? dateElement.textContent.trim() : null;
       const date = dateText ? parseMessageDate(dateText) : null;
 
-      if (filterOptions.maxDate && !isNaN(filterOptions.maxDate.getTime()) && date) {
-        const filterDate = new Date(filterOptions.maxDate);
-        filterDate.setHours(0, 0, 0, 0);
-        if (date > filterDate) {
-          ignoredByFiltersCount++;
-          processedMessages.add(messageId);
-          logEvent(messageId, "Ignoré.", "Date supérieure à la date mentionnée.");
-          continue;
-        }
-      } else if (!date) {
+      if (!date) {
         ignoredByFiltersCount++;
         processedMessages.add(messageId);
         logEvent(messageId, "Ignoré.", "Aucune date trouvée.");
         continue;
+      }
+
+      if (filterOptions.maxDate && !isNaN(filterOptions.maxDate.getTime())) {
+        const filterMaxDate = new Date(filterOptions.maxDate);
+        filterMaxDate.setHours(0, 0, 0, 0);
+        if (date > filterMaxDate) {
+          ignoredByFiltersCount++;
+          processedMessages.add(messageId);
+          logEvent(messageId, "Ignoré.", "Date supérieure à la date maximale.");
+          continue;
+        }
+      }
+
+      if (filterOptions.minDate && !isNaN(filterOptions.minDate.getTime())) {
+        const filterMinDate = new Date(filterOptions.minDate);
+        filterMinDate.setHours(0, 0, 0, 0);
+        if (date < filterMinDate) {
+          ignoredByFiltersCount++;
+          processedMessages.add(messageId);
+          logEvent(messageId, "Ignoré.", "Date inférieure à la date minimale.");
+          continue;
+        }
       }
 
       let msgLength = null;
@@ -869,7 +1048,9 @@
 
       promises.push(
         deleteMessage(hash, messageId, 20).then(() => {
-          logEvent(messageId, "Supprimé.");
+          if (!filterOptions.dryRun) {
+            logEvent(messageId, "Supprimé.");
+          }
           processedMessages.add(messageId);
         }).catch((error) => {
           console.error(`Échec de la suppression du message ${messageId}: ${error.message}`);
@@ -885,6 +1066,17 @@
   }
 
   async function deleteMessage(hash, messageId, maxAttempts) {
+    if (filterOptions.dryRun) {
+      logEvent(messageId, "Supprimé.", "Mode simulation activé.");
+      deletedByScriptCount++;
+      deletedTotalCount++;
+      processedMessages.add(messageId);
+      failedMessages.delete(messageId);
+      failedAfterRetry.delete(messageId);
+      updateUI();
+      return true;
+    }
+
     let attempt = 0;
     let error503dCount = 0;
     let error403 = false;
