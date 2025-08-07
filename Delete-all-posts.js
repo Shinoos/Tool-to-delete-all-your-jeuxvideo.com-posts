@@ -1,5 +1,5 @@
 (async function main() {
-  const scriptVersion = "v1.2.3";
+  const scriptVersion = "v1.2.4";
   checkScriptVersion();
   let scriptStatus = "En attente de lancement";
   let scriptError = false;
@@ -357,6 +357,10 @@
       }
       .modal-confirmation button:hover {
         background: rgba(0, 0, 0, 0.95);
+      }
+      .icon-disabled {
+        filter: grayscale(100%);
+        pointer-events: none;
       }
     `;
     document.head.appendChild(style);
@@ -874,76 +878,160 @@
   }
 
   function showJournal() {
-    const formatTimestamp = iso => new Date(iso)
-      .toLocaleString('fr-FR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
+    const batchSize = 500;
+    let displayedEvents = 0;
+    let isLoading = false;
+    let updateBtnInterval;
 
     const modal = document.createElement('div');
     modal.className = 'modal-journal';
     modal.style.display = 'block';
 
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    `;
     const title = document.createElement('h4');
     title.textContent = 'Journal des événements';
-    title.style.textAlign = 'center';
-    modal.appendChild(title);
+    title.style.margin = 0;
+    title.style.flex = '1';
+    header.appendChild(title);
+
+    const loadAllBtn = document.createElement('button');
+    loadAllBtn.textContent = 'Tout charger';
+    loadAllBtn.style.cssText = `
+      display:block;
+      margin:8px auto 0;
+      padding:6px 14px;
+      font-size:14px;
+      border-radius:6px;
+      cursor:pointer;
+    `;
+    header.appendChild(loadAllBtn);
+    modal.appendChild(header);
 
     const table = document.createElement('table');
-    table.style.cssText = 'border-collapse:collapse;width:100%;margin-bottom:15px;';
+    table.style.cssText = 'border-collapse:collapse;width:100%;';
     table.innerHTML = `
-    <thead>
-      <tr>
-        <th data-type="date"   style="border:1px solid #999;padding:5px;cursor:pointer;">Horodatage</th>
-        <th data-type="number" style="border:1px solid #999;padding:5px;cursor:pointer;">Message ID</th>
-        <th data-type="string" style="border:1px solid #999;padding:5px;cursor:pointer;">Action</th>
-        <th data-type="string" style="border:1px solid #999;padding:5px;cursor:pointer;">Raison</th>
-      </tr>
-    </thead>
-  `;
+      <thead>
+        <tr>
+          <th data-type="date" style="border:1px solid#999;padding:5px;cursor:pointer;">Horodatage</th>
+          <th data-type="number" style="border:1px solid#999;padding:5px;cursor:pointer;">Message ID</th>
+          <th data-type="string" style="border:1px solid#999;padding:5px;cursor:pointer;">Action</th>
+          <th data-type="string" style="border:1px solid#999;padding:5px;cursor:pointer;">Raison</th>
+        </tr>
+      </thead>
+    `;
     const tbody = document.createElement('tbody');
-
-    journal.forEach(entry => {
-      const tr = document.createElement('tr');
-      const cols = [
-        entry.timestamp,
-        entry.messageId,
-        entry.action,
-        entry.reason || 'N/A'
-      ];
-      cols.forEach((val, i) => {
-        const td = document.createElement('td');
-        td.style.cssText = 'border:1px solid #999;padding:5px;';
-        if (i === 1) {
-          const a = document.createElement('a');
-          a.href = `https://www.jeuxvideo.com/forums/message/${val}`;
-          a.target = '_blank';
-          a.textContent = val;
-          a.style.color = '#90EE90';
-          a.style.textDecoration = 'none';
-          td.appendChild(a);
-        } else td.textContent = val;
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-
     table.appendChild(tbody);
     modal.appendChild(table);
 
-    enableSorting(table);
+    function resortTable() {
+      const sortedTh = table.querySelector('th.sorted-asc, th.sorted-desc');
+      if (!sortedTh) return;
+
+      const colIndex = Array.from(sortedTh.parentNode.children).indexOf(sortedTh);
+      const isAsc = sortedTh.classList.contains('sorted-asc');
+      const type = sortedTh.dataset.type;
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+
+      rows.sort((a, b) => {
+        let aT = a.children[colIndex].textContent.trim();
+        let bT = b.children[colIndex].textContent.trim();
+        if (type === 'number') return isAsc ? aT - bT : bT - aT;
+        if (type === 'date') return isAsc ?
+          new Date(aT) - new Date(bT) :
+          new Date(bT) - new Date(aT);
+        return isAsc ? aT.localeCompare(bT) : bT.localeCompare(aT);
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+    }
+
+    function loadMoreEvents() {
+      if (isLoading || displayedEvents >= journal.length) return;
+      isLoading = true;
+
+      const start = displayedEvents;
+      const end = Math.min(start + batchSize, journal.length);
+      const batch = journal.slice(start, end);
+
+      batch.forEach(entry => {
+        const tr = document.createElement('tr');
+        [entry.timestamp, entry.messageId, entry.action, entry.reason || 'N/A']
+        .forEach((val, i) => {
+          const td = document.createElement('td');
+          td.style.cssText = 'border:1px solid#999;padding:5px;';
+          if (i === 1) {
+            const a = document.createElement('a');
+            a.href = `https://www.jeuxvideo.com/forums/message/${val}`;
+            a.target = '_blank';
+            a.textContent = val;
+            a.style.color = '#90EE90';
+            td.appendChild(a);
+          } else {
+            td.textContent = val;
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+
+      displayedEvents = end;
+      isLoading = false;
+
+      resortTable();
+      updateLoadAllBtn();
+    }
+
+    function updateLoadAllBtn() {
+      const remaining = journal.length - displayedEvents;
+      loadAllBtn.disabled = remaining <= 0;
+      loadAllBtn.style.opacity = remaining > 0 ? '1' : '0.4';
+      loadAllBtn.style.cursor = remaining > 0 ? 'pointer' : 'not-allowed';
+    }
+
+    loadMoreEvents();
+    updateLoadAllBtn();
+
+    modal.addEventListener('scroll', () => {
+      if (isLoading) return;
+      const pos = modal.scrollTop + modal.clientHeight;
+      if (pos > modal.scrollHeight - 100 && displayedEvents < journal.length) {
+        loadMoreEvents();
+      }
+    });
+
+    loadAllBtn.addEventListener('click', () => {
+      while (displayedEvents < journal.length) {
+        loadMoreEvents();
+      }
+    });
+
+    updateBtnInterval = setInterval(updateLoadAllBtn, 500);
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = 'Fermer';
-    closeBtn.style.cssText = 'display:block;margin:10px auto;padding:10px 20px;font-size:16px;border-radius:6px;';
-    closeBtn.onclick = () => modal.remove();
+    closeBtn.style.cssText = `
+      display:block;
+      margin:8px auto 0;
+      padding:6px 14px;
+      font-size:14px;
+      border-radius:6px;
+      cursor:pointer;
+    `;
+    closeBtn.onclick = () => {
+      clearInterval(updateBtnInterval);
+      modal.remove();
+    };
     modal.appendChild(closeBtn);
 
     document.body.appendChild(modal);
+
+    enableSorting(table);
   }
 
   window.showJournal = showJournal;
@@ -1398,7 +1486,11 @@
     updateUI();
     throw new Error("Arrêt du script.");
   }
+
+  const icons = document.querySelectorAll('.settings-icon, .journal-icon');
+  icons.forEach(i => i.classList.add('icon-disabled'));
   const totalMessages = await fetchTotalMessagesCount(pseudo);
+  icons.forEach(i => i.classList.remove('icon-disabled'));
   if (totalMessages) {
     totalMessagesCount = totalMessages;
     totalPages = Math.ceil(totalMessages / 20);
